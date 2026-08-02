@@ -19,10 +19,10 @@
     } catch (e) { /* 隐私模式等场景静默失败 */ }
   }
 
-  /* ---------------- 状态（加载时迁移为双语结构） ---------------- */
-  var bets = (load(LS_BETS) || JSON.parse(JSON.stringify(PC.SEED_BETS))).map(PC.migrateBet);
-  var alloc = PC.migrateAlloc(load(LS_ALLOC) || JSON.parse(JSON.stringify(PC.SEED_ALLOC)));
-  var northstar = norm(load(LS_NS) || PC.SEED_NORTHSTAR);
+  /* ---------------- 状态（加载时迁移为双语结构；种子为双语合并版） ---------------- */
+  var bets = load(LS_BETS) ? load(LS_BETS).map(PC.migrateBet) : PC.mergeSeedBets();
+  var alloc = load(LS_ALLOC) ? PC.migrateAlloc(load(LS_ALLOC)) : PC.mergeSeedAlloc();
+  var northstar = norm(load(LS_NS) || PC.mergeSeedNorthstar());
   var sel = bets.length ? bets[0].id : 'B-01';
 
   window.PlayState = {
@@ -38,9 +38,9 @@
 
   function resetSeed() {
     if (!window.confirm(t('resetConfirm'))) return;
-    bets = JSON.parse(JSON.stringify(PC.SEED_BETS)).map(PC.migrateBet);
-    alloc = PC.migrateAlloc(JSON.parse(JSON.stringify(PC.SEED_ALLOC)));
-    northstar = norm(PC.SEED_NORTHSTAR);
+    bets = PC.mergeSeedBets();
+    alloc = PC.mergeSeedAlloc();
+    northstar = PC.mergeSeedNorthstar();
     sel = bets[0].id;
     save();
     renderAll();

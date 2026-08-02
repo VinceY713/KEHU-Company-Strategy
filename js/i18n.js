@@ -228,7 +228,8 @@
   function setLang(l) { lang = (l === 'en') ? 'en' : 'zh'; try { localStorage.setItem('playcard.v2.lang', lang); } catch (e) {} }
   function getLang() { return lang; }
   function isEn() { return lang === 'en'; }
-  /* 双语数据字段：取当前语言，回退 zh */
+  /* 双语数据字段：只读展示取当前语言；该语言缺失时显示占位（绝不回退成另一语言混排） */
+  var PENDING_ZH = '（待翻译）', PENDING_EN = '[translation pending]';
   function norm(v) {
     if (v == null) return { zh: '', en: '' };
     if (typeof v === 'string') return { zh: v, en: '' };
@@ -237,7 +238,12 @@
   }
   function L(v) {
     v = norm(v);
-    return (v[lang] && v[lang].trim()) || v.zh || '';
+    if (v[lang] && v[lang].trim()) return v[lang];
+    return lang === 'en' ? PENDING_EN : PENDING_ZH;
+  }
+  function Lval(v) { /* 编辑器用：返回该语言实际值，空则空串（不显示占位，避免占位被保存） */
+    v = norm(v);
+    return (v[lang] || '');
   }
   function LOther(v) { /* 当前语言的另一语言 */
     v = norm(v);
@@ -257,5 +263,5 @@
     return obj;
   }
 
-  global.PlayI18N = { t: t, setLang: setLang, getLang: getLang, isEn: isEn, norm: norm, L: L, LOther: LOther, migrate: migrate };
+  global.PlayI18N = { t: t, setLang: setLang, getLang: getLang, isEn: isEn, norm: norm, L: L, Lval: Lval, LOther: LOther, migrate: migrate };
 })(window);

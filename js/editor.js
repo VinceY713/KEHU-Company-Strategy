@@ -9,7 +9,7 @@
 'use strict';
 (function () {
   var PC = window.PlayCARD, PS = window.PlayState, I18N = window.PlayI18N;
-  var t = I18N.t, L = I18N.L, norm = I18N.norm, getLang = I18N.getLang;
+  var t = I18N.t, Lval = I18N.Lval, norm = I18N.norm, getLang = I18N.getLang;
   var $ = function (id) { return document.getElementById(id); };
   var modal = $('modal'), body = $('me-body'), title = $('me-title');
   var esc = PC.esc;
@@ -25,7 +25,7 @@
 
   /* 双语字段读写：表单始终编辑当前语言，翻译写入另一语言 */
   function setL(v, val, dl) { v = norm(v); v[dl] = val; return v; }
-  function fshow(obj, key) { var v = obj[key]; return L(v); }
+  function fshow(obj, key) { var v = obj[key]; return Lval(v); }
   function fset(obj, key, val) { obj[key] = setL(obj[key], val, getLang()); }
   function bi() { return { zh: '', en: '' }; }
 
@@ -40,7 +40,7 @@
     m = m || {};
     return '<div class="mbtrow">' +
       '<input class="inp" data-fn="mbk" value="' + esc(m.k || '') + '" aria-label="' + t('mbK') + '">' +
-      '<input class="inp" data-fn="mbt" value="' + esc(L(m.t)) + '" placeholder="' + t('mbTPh') + '" aria-label="' + t('mbT') + '">' +
+      '<input class="inp" data-fn="mbt" value="' + esc(Lval(m.t)) + '" placeholder="' + t('mbTPh') + '" aria-label="' + t('mbT') + '">' +
       '<input class="inp nu" type="number" min="1" max="5" data-fn="mbu" value="' + (m.u || '') + '" placeholder="' + t('mbU') + '" aria-label="' + t('mbU') + '">' +
       '<input class="inp nu" type="number" min="1" max="5" data-fn="mbl" value="' + (m.l || '') + '" placeholder="' + t('mbL') + '" aria-label="' + t('mbL') + '">' +
       '<button type="button" class="rowdel" aria-label="' + t('mbDel') + '">×</button></div>';
@@ -49,8 +49,8 @@
     s = s || {};
     return '<div class="sigrow">' +
       '<input class="inp" type="date" data-fn="sigd" value="' + esc(s.d || '') + '" aria-label="' + t('sigD') + '">' +
-      '<input class="inp" data-fn="sigtext" value="' + esc(L(s.t)) + '" placeholder="' + t('sigText') + '" aria-label="' + t('sigText') + '">' +
-      '<input class="inp sm" data-fn="sigby" value="' + esc(L(s.by)) + '" placeholder="' + t('sigBy') + '" aria-label="' + t('sigBy') + '">' +
+      '<input class="inp" data-fn="sigtext" value="' + esc(Lval(s.t)) + '" placeholder="' + t('sigText') + '" aria-label="' + t('sigText') + '">' +
+      '<input class="inp sm" data-fn="sigby" value="' + esc(Lval(s.by)) + '" placeholder="' + t('sigBy') + '" aria-label="' + t('sigBy') + '">' +
       '<button type="button" class="rowdel" aria-label="' + t('sigDel') + '">×</button></div>';
   }
 
@@ -65,7 +65,8 @@
     };
   }
 
-  function betForm(b) {
+  function betForm(idOrBet) {
+    var b = (idOrBet && typeof idOrBet === 'object') ? idOrBet : PS.bets.filter(function (x) { return x.id === idOrBet; })[0];
     var isNew = !b;
     var origId = b ? b.id : null;
     var d = b ? JSON.parse(JSON.stringify(b)) : newDraft();
@@ -88,7 +89,7 @@
       '</fieldset>' +
       '<fieldset class="fieldset"><legend>' + t('fsFive') + '</legend>' +
         '<div class="field"><label class="lbl">' + t('fClaim') + ' <span class="req">*</span><span class="hint">' + t('fClaimHint') + '</span></label><textarea class="inp" data-fn="claim" rows="2">' + esc(fshow(d, 'claim')) + '</textarea></div>' +
-        '<div class="field"><label class="lbl">' + t('fBasis2') + ' <span class="req">*</span><span class="hint">' + t('fBasisHint') + '</span></label><textarea class="inp" data-fn="basis" rows="3">' + esc(d.basis.map(L).join('\n')) + '</textarea></div>' +
+        '<div class="field"><label class="lbl">' + t('fBasis2') + ' <span class="req">*</span><span class="hint">' + t('fBasisHint') + '</span></label><textarea class="inp" data-fn="basis" rows="3">' + esc(d.basis.map(Lval).join('\n')) + '</textarea></div>' +
         '<div class="grid2">' +
           '<div class="field"><label class="lbl">' + t('fKillT') + ' <span class="req">*</span><span class="hint">' + t('fKillHint') + '</span></label><textarea class="inp" data-fn="killt" rows="2">' + esc(fshow(d.kill, 't')) + '</textarea></div>' +
           '<div class="field"><label class="lbl">' + t('fKillD') + ' <span class="req">*</span></label><input class="inp" type="date" data-fn="killd" value="' + esc(d.kill.d) + '"></div>' +
@@ -418,7 +419,7 @@
   function allocForm() {
     var al = JSON.parse(JSON.stringify(PS.alloc));
     lang = getLang();
-    title.textContent = t('allocEditTitle', { q: L(al.quarter) });
+    title.textContent = t('allocEditTitle', { q: Lval(al.quarter) });
     var rows = PC.ENG_ORDER.concat(['legacy']).map(function (k) {
       var r = al.rows.filter(function (x) { return x.k === k; })[0] || { stated: 0, actual: 0 };
       return '<div class="grid3">' +
@@ -430,10 +431,10 @@
     body.innerHTML =
       '<form id="allocform" novalidate>' +
       '<fieldset class="fieldset"><legend>' + t('fQuarter') + '</legend>' +
-        '<div class="field"><label class="lbl">' + t('fQuarter') + '</label><input class="inp" data-fn="quarter" value="' + esc(L(al.quarter)) + '"></div>' +
+        '<div class="field"><label class="lbl">' + t('fQuarter') + '</label><input class="inp" data-fn="quarter" value="' + esc(Lval(al.quarter)) + '"></div>' +
       '</fieldset>' +
       '<fieldset class="fieldset"><legend>' + t('fsAlloc') + '</legend>' + rows + '</fieldset>' +
-      '<div class="field"><label class="lbl">' + t('fSource') + '</label><textarea class="inp" data-fn="source" rows="2">' + esc(L(al.source)) + '</textarea></div>' +
+      '<div class="field"><label class="lbl">' + t('fSource') + '</label><textarea class="inp" data-fn="source" rows="2">' + esc(Lval(al.source)) + '</textarea></div>' +
       '<div class="formfoot">' +
         '<button type="submit" class="btn primary">' + t('save') + '</button>' +
         '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
@@ -466,7 +467,7 @@
       '<div class="editorfails" id="efails" hidden><b>' + t('edRejected') + '</b><div id="efailslist"></div></div>' +
       '<form id="nsform" novalidate>' +
       '<div class="field"><label class="lbl">' + t('fNs') + ' <span class="hint">' + t('fNsHint') + '</span></label>' +
-      '<textarea class="inp" data-fn="ns" rows="3">' + esc(L(PS.northstar)) + '</textarea></div>' +
+      '<textarea class="inp" data-fn="ns" rows="3">' + esc(Lval(PS.northstar)) + '</textarea></div>' +
       '<div class="formfoot">' +
         '<button type="submit" class="btn primary">' + t('save') + '</button>' +
         '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +

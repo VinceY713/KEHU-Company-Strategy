@@ -153,6 +153,55 @@
   }
   function migrateAlloc(a) { a.quarter = norm(a.quarter); a.source = norm(a.source); return a; }
 
+  /* ---------------- 种子合并：中文种子 + 英文版 → 双语结构 ---------------- */
+  function mergeSeedBets() {
+    var en = global.PlayCARD_SEED_EN || { bets: [] };
+    var enMap = {};
+    (en.bets || []).forEach(function (e) { enMap[e.id] = e; });
+    return SEED_BETS.map(function (b) {
+      var e = enMap[b.id] || {};
+      var pair = function (src, enKey) { return { zh: src, en: e[enKey] || '' }; };
+      var ownerEn = b.owner === '待定' ? 'TBD' : b.owner;
+      return {
+        id: b.id, engine: b.engine, irreversible: b.irreversible,
+        owner: { zh: b.owner, en: ownerEn },
+        claim: pair(b.claim, 'claim'),
+        basis: b.basis.map(function (x, i) { return { zh: x, en: (e.basis || [])[i] || '' }; }),
+        kill: { t: pair(b.kill.t, 'kill_t'), d: b.kill.d },
+        sacrifice: pair(b.sacrifice, 'sacrifice'),
+        probe: { a: pair(b.probe.a, 'probe_a'), d: b.probe.d },
+        crit: {
+          m: pair(b.crit.m, 'crit_m'), kind: b.crit.kind, u: pair(b.crit.u, 'crit_u'),
+          now: b.crit.now, thr: b.crit.thr, direction: b.crit.direction, src: pair(b.crit.src, 'crit_src')
+        },
+        mbt: b.mbt.map(function (m, i) { return { k: m.k, t: { zh: m.t, en: ((e.mbt || [])[i] || {}).t || '' }, u: m.u, l: m.l }; }),
+        short: {
+          by: pair(b.short.by, 'short_by'), q: pair(b.short.q, 'short_q'), arg: pair(b.short.arg, 'short_arg'),
+          sigs: (b.short.sigs || []).map(function (s, i) {
+            var se = (e.sigs || [])[i] || {};
+            return { d: s.d, t: { zh: s.t, en: se.t || '' }, by: { zh: s.by, en: se.by || '' } };
+          })
+        },
+        rv: (b.rv || []).map(function (r, i) {
+          var re = (e.rv || [])[i] || {};
+          return { d: r.d, v: r.v, by: { zh: r.by, en: re.by || '' }, t: { zh: r.t, en: re.t || '' } };
+        }),
+        createdAt: ''
+      };
+    });
+  }
+  function mergeSeedAlloc() {
+    var en = global.PlayCARD_SEED_EN || {};
+    var a = JSON.parse(JSON.stringify(SEED_ALLOC));
+    a.quarter = { zh: a.quarter, en: a.quarter };
+    a.source = { zh: a.source, en: en.alloc_source || '' };
+    return a;
+  }
+  function mergeSeedNorthstar() {
+    var en = global.PlayCARD_SEED_EN || {};
+    return { zh: SEED_NORTHSTAR, en: en.northstar || '' };
+  }
+
   global.PlayCARD = {
     TODAY: TODAY, days: days,
     ENG: ENG, ENG_KEY: ENG_KEY, ENG_ORDER: ENG_ORDER,
@@ -160,6 +209,7 @@
     ALLOC_NAME: ALLOC_NAME,
     audit: audit, failCount: failCount, hot: hot,
     esc: esc,
-    migrateBet: migrateBet, migrateAlloc: migrateAlloc
+    migrateBet: migrateBet, migrateAlloc: migrateAlloc,
+    mergeSeedBets: mergeSeedBets, mergeSeedAlloc: mergeSeedAlloc, mergeSeedNorthstar: mergeSeedNorthstar
   };
 })(window);
