@@ -74,6 +74,7 @@
     body.innerHTML =
       '<div class="editorfails" id="efails" hidden><b>' + t('edRejected') + '</b><div id="efailslist"></div></div>' +
       '<div class="editorok" id="eok" hidden></div>' +
+      '<div class="hintbar">💡 ' + t('aiEnrichNote') + '</div>' +
       '<form id="betform" novalidate>' +
       '<fieldset class="fieldset"><legend>' + t('fsIdentity') + '</legend>' +
         '<div class="grid2">' +
@@ -128,6 +129,7 @@
       '</fieldset>' +
       '<div class="formfoot">' +
         '<button type="submit" class="btn primary">' + t('save') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="ai-enrich">✨ ' + t('aiEnrich') + '</button>' +
         '<button type="button" class="btn ghost purple" id="ai-translate">⚡ ' + t('aiTranslate') + '</button>' +
         '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
         '<span class="note">' + t('saveNote') + '</span>' +
@@ -149,6 +151,7 @@
       if (del) { var row = del.closest('.mbtrow, .sigrow'); if (row && row.parentNode) row.parentNode.removeChild(row); }
     });
     $('me-cancel').addEventListener('click', close);
+    $('ai-enrich').addEventListener('click', function () { aiEnrich(); });
     $('ai-translate').addEventListener('click', function () { aiTranslate(); });
     $('betform').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -256,6 +259,79 @@
     (o.sigs || []).forEach(function (s, i) {
       if (d.short.sigs[i]) { d.short.sigs[i].t = setL(d.short.sigs[i].t, s.t || '', dl); d.short.sigs[i].by = setL(d.short.sigs[i].by, s.by || '', dl); }
     });
+  }
+
+  /* ---------------- AI 优化补充（简单填入 → AI 按规范补全） ---------------- */
+  function buildEnrichPrompt(payload) {
+    var langName = getLang() === 'zh' ? '中文' : 'English';
+    return '你是客湖科技（KEHU）的战略顾问，负责把团队的想法打磨成符合 PlayCARD 赌注规范的完整赌注。请用' + langName + '输出。\n' +
+      '用户只提供了部分内容（可能只有一两句），请：\n' +
+      '1. 精炼并优化已填内容（不改变事实，只改表达）；\n' +
+      '2. 按以下规范补全缺失字段，输出完整赌注 JSON：\n' +
+      '- claim：一句可判真假的陈述；\n' +
+      '- basis：只能基于用户已提供的事实；如果用户没有提供任何已发生事实，输出占位“（待补充已发生的事实）”，绝对不得编造事实；\n' +
+      '- kill_t + kill_d：可观测、有阈值、有日期的停损条件，日期格式 YYYY-MM-DD（未来 3–6 个月）；\n' +
+      '- sacrifice：具体到放弃的客户类型、岗位或收入区间；\n' +
+      '- probe_a + probe_d：30 天内的对外真实动作（报价、签约、试用等真实交易或接触，不是内部调研），日期格式 YYYY-MM-DD；\n' +
+      '- crit_m / crit_kind=leading / crit_u / crit_now / crit_thr / crit_src：先行指标（行为或早期信号，不是结果指标），含单位、当前值、阈值、取值来源；\n' +
+      '- mbt：3–5 条“必须为真”的前提，每条 {t, u(不确定性1–5), l(致命性1–5)}，确保至少一条落在右上象限（u≥4 且 l≥4），这正是本季唯一值得验证的；\n' +
+      '- short_by / short_q / short_arg：轮值空头与“为什么这个赌注会失败”的反对意见（不许附和）；\n' +
+      '- owner：负责人。\n' +
+      '按商业常识判断合理性，不要堆砌套话。\n' +
+      '输出 JSON 键名：{claim, basis[], kill_t, kill_d, sacrifice, probe_a, probe_d, crit_m, crit_u, crit_now, crit_thr, crit_src, mbt[{t,u,l}], short_by, short_q, short_arg, owner}\n' +
+      '直接输出 JSON，不要 markdown 代码块标记，不要任何解释文字。\n\n' +
+      '用户已填内容：\n' + JSON.stringify(payload, null, 1);
+  }
+
+  /* 把 AI 补全结果回填到表单（当前语言字段），mbt 行按结果重建 */
+  function fillEnriched(o) {
+    var set = function (fn, v) { var el = body.querySelector('[data-fn="' + fn + '"]'); if (el) el.value = v; };
+    set('claim', o.claim || ''); set('owner', o.owner || '');
+    set('basis', (o.basis || []).join('\n'));
+    set('killt', o.kill_t || ''); set('killd', o.kill_d || '');
+    set('sacrifice', o.sacrifice || '');
+    set('probea', o.probe_a || ''); set('probed', o.probe_d || '');
+    set('critm', o.crit_m || ''); set('critu', o.crit_u || '');
+    set('critnow', o.crit_now || 0); set('critthr', o.crit_thr || 0);
+    set('critsrc', o.crit_src || '');
+    set('shortby', o.short_by || ''); set('shortq', o.short_q || ''); set('shortarg', o.short_arg || '');
+    var rows = (o.mbt || []).filter(function (m) { return m.t && m.t.trim(); });
+    if (rows.length) {
+      $('mbtrows').innerHTML = rows.map(function (m, i) {
+        var tt = bi(); tt[getLang()] = m.t;
+        return mbtRow({ k: String.fromCharCode(97 + i), t: tt, u: Math.min(5, Math.max(1, +m.u || 1)), l: Math.min(5, Math.max(1, +m.l || 1)) });
+      }).join('');
+    }
+  }
+
+  function aiEnrich() {
+    var btn = $('ai-enrich');
+    var payload = collectI18n();
+    if (!payload.claim && !payload.basis.length) {
+      showNote(t('aiEnrichFail', { msg: 'empty' }), 'err'); return;
+    }
+    btn.disabled = true; btn.textContent = '✨ ' + t('aiEnriching');
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: buildEnrichPrompt(payload) }],
+        response_format: { type: 'json_object' },
+        temperature: 0.4,
+        max_tokens: 3000
+      })
+    })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (data) {
+      var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error('empty response');
+      var o = JSON.parse(cleanJson(content));
+      fillEnriched(o);
+      showNote(t('aiEnrichDone'), 'ok');
+    })
+    .catch(function (e) { showNote(t('aiEnrichFail', { msg: e.message }), 'err'); })
+    .finally(function () { btn.disabled = false; btn.textContent = '✨ ' + t('aiEnrich'); });
   }
 
   /* ---------------- 保存（体检硬拦截） ---------------- */
