@@ -3,18 +3,22 @@
    - 种子数据（文案由战略 owner 逐条确认，这里仅是格式示范）
    - 引擎映射、日期工具
    - 体检规则：四项硬拦截（sacrifice / kill / probe / leading）
+   - 双语迁移：把字符串字段归一为 {zh, en}
    ============================================================ */
 'use strict';
 (function (global) {
 
-  /* 基准日取真实当天，让倒计时与逾期状态始终是活的 */
-  var TODAY = (function () { var t = new Date(); t.setHours(0, 0, 0, 0); return t; })();
+  var I18N = global.PlayI18N;
+  var t = I18N.t, norm = I18N.norm;
+
+  var TODAY = (function () { var t2 = new Date(); t2.setHours(0, 0, 0, 0); return t2; })();
   var days = function (d) { return Math.round((new Date(d + 'T00:00:00') - TODAY) / 864e5); };
 
-  var ENG = { data: '数据成功', tech: '技术成功', client: '客户成功' };
+  var ENG = { data: 'data', tech: 'tech', client: 'client' };
+  var ENG_KEY = { data: 'engData', tech: 'engTech', client: 'engClient' };
   var ENG_ORDER = ['data', 'tech', 'client'];
 
-  /* ---------------- 种子赌注 ---------------- */
+  /* ---------------- 种子赌注（纯中文文本，加载时迁移为双语） ---------------- */
   var SEED_BETS = [
     {
       id: 'B-01', engine: 'data', irreversible: true, owner: 'Vince',
@@ -107,22 +111,22 @@
       { k: 'legacy', stated: 0, actual: 43 }
     ]
   };
-  var ALLOC_NAME = { data: '数据成功', tech: '技术成功', client: '客户成功', legacy: '未归属战略的存量交付' };
+  var ALLOC_NAME = { data: 'engData', tech: 'engTech', client: 'engClient', legacy: 'legacyName' };
 
   var SEED_NORTHSTAR = '把渠道数据变成客湖的独家资产，让公司靠决策与结果收费，而不是靠许可与人天。';
 
-  /* ---------------- 体检（四项硬拦截，文案见指引第 3 节） ---------------- */
+  /* ---------------- 体检（四项硬拦截，文案见指引第 3 节，双语） ---------------- */
+  var anyL = function (v) { v = norm(v); return !!(v.zh || v.en); };
   function audit(b) {
     var pd = b.probe && b.probe.d ? days(b.probe.d) : null;
-    var probeOk = !!(b.probe && b.probe.a && b.probe.a.trim()) && pd !== null && pd >= 0 && pd <= 30;
-    var probeWhy = (!b.probe || !b.probe.a || !b.probe.a.trim())
-      ? '没有 30 天内的对外动作。这个判断还没想清楚。'
-      : (pd < 0 ? '30 天动作已逾期。' : '30 天动作必须在 30 天内截止。');
+    var hasProbeText = !!(b.probe && b.probe.a && anyL(b.probe.a));
+    var probeOk = hasProbeText && pd !== null && pd >= 0 && pd <= 30;
+    var probeWhy = !hasProbeText ? t('eProbeEmpty') : (pd < 0 ? t('eProbeOverdue') : t('eProbeFar'));
     return [
-      { k: '放弃', ok: !!(b.sacrifice && b.sacrifice.trim()), why: '没写放弃什么。这是愿望，不是战略。' },
-      { k: '可观测停损', ok: !!(b.kill && b.kill.t && b.kill.t.trim() && b.kill.d), why: '停损条件无法观测。半年后没人能判定它是否触发。' },
-      { k: '30天动作', ok: probeOk, why: probeWhy },
-      { k: '先行指标', ok: !!(b.crit && b.crit.kind === 'leading'), why: '判据是滞后指标。等它出结果时纠错已经来不及。' }
+      { k: t('checkSacrifice'), ok: !!(b.sacrifice && anyL(b.sacrifice)), why: t('eSacrifice') },
+      { k: t('checkKill'), ok: !!(b.kill && b.kill.t && anyL(b.kill.t) && b.kill.d), why: t('eKill') },
+      { k: t('checkProbe'), ok: probeOk, why: probeWhy },
+      { k: t('checkLeading'), ok: !!(b.crit && b.crit.kind === 'leading'), why: t('eLagging') }
     ];
   }
   var failCount = function (b) { return audit(b).filter(function (c) { return !c.ok; }).length; };
@@ -132,12 +136,30 @@
   var escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return escMap[c]; }); };
 
+  /* ---------------- 双语迁移：字符串字段 → {zh, en} ---------------- */
+  function migrateBet(b) {
+    b.claim = norm(b.claim);
+    b.sacrifice = norm(b.sacrifice);
+    b.owner = norm(b.owner);
+    b.basis = (b.basis || []).map(norm);
+    b.kill.t = norm(b.kill.t);
+    b.probe.a = norm(b.probe.a);
+    b.crit.m = norm(b.crit.m); b.crit.u = norm(b.crit.u); b.crit.src = norm(b.crit.src);
+    b.mbt = (b.mbt || []).map(function (m) { m.t = norm(m.t); return m; });
+    b.short.by = norm(b.short.by); b.short.q = norm(b.short.q); b.short.arg = norm(b.short.arg);
+    b.short.sigs = (b.short.sigs || []).map(function (s) { s.t = norm(s.t); s.by = norm(s.by); return s; });
+    b.rv = (b.rv || []).map(function (r) { r.by = norm(r.by); r.t = norm(r.t); return r; });
+    return b;
+  }
+  function migrateAlloc(a) { a.quarter = norm(a.quarter); a.source = norm(a.source); return a; }
+
   global.PlayCARD = {
     TODAY: TODAY, days: days,
-    ENG: ENG, ENG_ORDER: ENG_ORDER,
+    ENG: ENG, ENG_KEY: ENG_KEY, ENG_ORDER: ENG_ORDER,
     SEED_BETS: SEED_BETS, SEED_ALLOC: SEED_ALLOC, SEED_NORTHSTAR: SEED_NORTHSTAR,
     ALLOC_NAME: ALLOC_NAME,
     audit: audit, failCount: failCount, hot: hot,
-    esc: esc
+    esc: esc,
+    migrateBet: migrateBet, migrateAlloc: migrateAlloc
   };
 })(window);

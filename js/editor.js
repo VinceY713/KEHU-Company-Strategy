@@ -1,24 +1,33 @@
 /* ============================================================
-   PlayCARD v2 · 编辑器
-   - 赌注录入 / 编辑（保存受体检硬拦截：放弃、停损、30 天动作、
-     先行指标不满足一律拒绝保存，提示文案见指引第 3 节）
-   - 资源投向配比编辑
-   - 三年方向编辑（不带任何数字）
+   PlayCARD v2 · 编辑器（中英双语 + AI 一键翻译）
+   - 赌注录入 / 编辑：保存受体检硬拦截（任一语言有值即算有）
+   - AI 一键翻译：把当前语言内容按商业语境翻译成另一语言
+     （经服务器 /api/translate 代理 DeepSeek，key 不落前端）
+   - 资源投向配比 / 三年方向编辑
    桌面端可用；移动端只读（入口已被 CSS 隐藏）。
    ============================================================ */
 'use strict';
 (function () {
-  var PC = window.PlayCARD, PS = window.PlayState;
+  var PC = window.PlayCARD, PS = window.PlayState, I18N = window.PlayI18N;
+  var t = I18N.t, L = I18N.L, norm = I18N.norm, getLang = I18N.getLang;
   var $ = function (id) { return document.getElementById(id); };
   var modal = $('modal'), body = $('me-body'), title = $('me-title');
   var esc = PC.esc;
+  var lang = getLang();
+  var pendingDst = null; /* AI 翻译结果暂存，保存时合并 */
 
-  var ENG_OPTIONS = PC.ENG_ORDER.map(function (k) { return '<option value="' + k + '">' + PC.ENG[k] + '</option>'; }).join('');
+  var ENG_OPTIONS = PC.ENG_ORDER.map(function (k) { return '<option value="' + k + '">' + t(PC.ENG_KEY[k]) + '</option>'; }).join('');
 
   function open() { modal.hidden = false; $('me-close').focus(); }
-  function close() { modal.hidden = true; body.innerHTML = ''; }
+  function close() { modal.hidden = true; body.innerHTML = ''; pendingDst = null; }
   $('me-close').addEventListener('click', close);
   modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+
+  /* 双语字段读写：表单始终编辑当前语言，翻译写入另一语言 */
+  function setL(v, val, dl) { v = norm(v); v[dl] = val; return v; }
+  function fshow(obj, key) { var v = obj[key]; return L(v); }
+  function fset(obj, key, val) { obj[key] = setL(obj[key], val, getLang()); }
+  function bi() { return { zh: '', en: '' }; }
 
   /* ================= 赌注表单 ================= */
   function nextId() {
@@ -30,94 +39,109 @@
   function mbtRow(m) {
     m = m || {};
     return '<div class="mbtrow">' +
-      '<input class="inp" data-fn="mbk" value="' + esc(m.k || '') + '" aria-label="前提编号">' +
-      '<input class="inp" data-fn="mbt" value="' + esc(m.t || '') + '" placeholder="前提陈述（可判真假）" aria-label="前提内容">' +
-      '<input class="inp nu" type="number" min="1" max="5" data-fn="mbu" value="' + (m.u || '') + '" placeholder="不确定 1-5" aria-label="不确定性 1 到 5">' +
-      '<input class="inp nu" type="number" min="1" max="5" data-fn="mbl" value="' + (m.l || '') + '" placeholder="致命 1-5" aria-label="致命性 1 到 5">' +
-      '<button type="button" class="rowdel" aria-label="删除该前提">×</button></div>';
+      '<input class="inp" data-fn="mbk" value="' + esc(m.k || '') + '" aria-label="' + t('mbK') + '">' +
+      '<input class="inp" data-fn="mbt" value="' + esc(L(m.t)) + '" placeholder="' + t('mbTPh') + '" aria-label="' + t('mbT') + '">' +
+      '<input class="inp nu" type="number" min="1" max="5" data-fn="mbu" value="' + (m.u || '') + '" placeholder="' + t('mbU') + '" aria-label="' + t('mbU') + '">' +
+      '<input class="inp nu" type="number" min="1" max="5" data-fn="mbl" value="' + (m.l || '') + '" placeholder="' + t('mbL') + '" aria-label="' + t('mbL') + '">' +
+      '<button type="button" class="rowdel" aria-label="' + t('mbDel') + '">×</button></div>';
   }
   function sigRow(s) {
     s = s || {};
     return '<div class="sigrow">' +
-      '<input class="inp" type="date" data-fn="sigd" value="' + esc(s.d || '') + '" aria-label="信号日期">' +
-      '<input class="inp" data-fn="sigtext" value="' + esc(s.t || '') + '" placeholder="证伪信号内容" aria-label="信号内容">' +
-      '<input class="inp sm" data-fn="sigby" value="' + esc(s.by || '') + '" placeholder="登记人" aria-label="登记人">' +
-      '<button type="button" class="rowdel" aria-label="删除该信号">×</button></div>';
+      '<input class="inp" type="date" data-fn="sigd" value="' + esc(s.d || '') + '" aria-label="' + t('sigD') + '">' +
+      '<input class="inp" data-fn="sigtext" value="' + esc(L(s.t)) + '" placeholder="' + t('sigText') + '" aria-label="' + t('sigText') + '">' +
+      '<input class="inp sm" data-fn="sigby" value="' + esc(L(s.by)) + '" placeholder="' + t('sigBy') + '" aria-label="' + t('sigBy') + '">' +
+      '<button type="button" class="rowdel" aria-label="' + t('sigDel') + '">×</button></div>';
+  }
+
+  function newDraft() {
+    return {
+      id: nextId(), engine: 'data', irreversible: true, owner: bi(), claim: bi(),
+      basis: [], kill: { t: bi(), d: '' }, sacrifice: bi(), probe: { a: bi(), d: '' },
+      crit: { m: bi(), kind: 'leading', u: bi(), now: 0, thr: 0, direction: 'up', src: bi() },
+      mbt: [{ k: 'a', t: bi(), u: 1, l: 1 }, { k: 'b', t: bi(), u: 1, l: 1 }, { k: 'c', t: bi(), u: 1, l: 1 }],
+      short: { by: bi(), q: bi(), arg: bi(), sigs: [] },
+      rv: [], createdAt: ''
+    };
   }
 
   function betForm(b) {
     var isNew = !b;
-    b = b || { id: nextId(), engine: 'data', irreversible: true, owner: '', claim: '', basis: [], kill: { t: '', d: '' }, sacrifice: '', probe: { a: '', d: '' }, crit: { m: '', kind: 'leading', u: '', now: '', thr: '', direction: 'up', src: '' }, mbt: [{ k: 'a', t: '', u: '', l: '' }, { k: 'b', t: '', u: '', l: '' }, { k: 'c', t: '', u: '', l: '' }], short: { by: '', q: '', arg: '', sigs: [] }, rv: [], createdAt: '' };
-    title.textContent = isNew ? '录入赌注' : '编辑 ' + b.id;
+    var origId = b ? b.id : null;
+    var d = b ? JSON.parse(JSON.stringify(b)) : newDraft();
+    lang = getLang();
+    title.textContent = isNew ? t('edTitleNew') : t('edTitleEdit', { id: d.id });
     body.innerHTML =
-      '<div class="editorfails" id="efails" hidden><b>保存被拒绝 · 体检未通过</b><div id="efailslist"></div></div>' +
+      '<div class="editorfails" id="efails" hidden><b>' + t('edRejected') + '</b><div id="efailslist"></div></div>' +
+      '<div class="editorok" id="eok" hidden></div>' +
       '<form id="betform" novalidate>' +
-      '<fieldset class="fieldset"><legend>身份</legend>' +
+      '<fieldset class="fieldset"><legend>' + t('fsIdentity') + '</legend>' +
         '<div class="grid2">' +
-          '<div class="field"><label class="lbl">编号</label><input class="inp" data-fn="id" value="' + esc(b.id) + '"></div>' +
-          '<div class="field"><label class="lbl">引擎</label><select class="inp" data-fn="engine">' + ENG_OPTIONS.replace('value="' + b.engine + '"', 'value="' + b.engine + '" selected') + '</select></div>' +
+          '<div class="field"><label class="lbl">' + t('fId') + '</label><input class="inp" data-fn="id" value="' + esc(d.id) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fEngine') + '</label><select class="inp" data-fn="engine">' + ENG_OPTIONS.replace('value="' + d.engine + '"', 'value="' + d.engine + '" selected') + '</select></div>' +
         '</div>' +
         '<div class="grid2">' +
-          '<div class="field"><label class="lbl">负责人</label><input class="inp" data-fn="owner" value="' + esc(b.owner) + '"></div>' +
-          '<div class="field revrow"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-fn="irreversible"' + (b.irreversible ? ' checked' : '') + '> 不可逆决策（只有不可逆的值得开战略会）</label></div>' +
-        '</div>' +
-      '</fieldset>' +
-      '<fieldset class="fieldset"><legend>赌注五要素</legend>' +
-        '<div class="field"><label class="lbl">我们赌什么 <span class="req">*</span><span class="hint">一句可判真假的陈述</span></label><textarea class="inp" data-fn="claim" rows="2">' + esc(b.claim) + '</textarea></div>' +
-        '<div class="field"><label class="lbl">凭什么 <span class="req">*</span><span class="hint">每行一条已发生的事实，不接受“我认为”</span></label><textarea class="inp" data-fn="basis" rows="3">' + esc(b.basis.join('\n')) + '</textarea></div>' +
-        '<div class="grid2">' +
-          '<div class="field"><label class="lbl">什么会证明我们错 <span class="req">*</span><span class="hint">可观测、有阈值、有日期</span></label><textarea class="inp" data-fn="killt" rows="2">' + esc(b.kill.t) + '</textarea></div>' +
-          '<div class="field"><label class="lbl">停损日 <span class="req">*</span></label><input class="inp" type="date" data-fn="killd" value="' + esc(b.kill.d) + '"></div>' +
-        '</div>' +
-        '<div class="field"><label class="lbl">为此放弃什么 <span class="req">*</span><span class="hint">具体到客户类型、岗位、收入区间。写不出放弃什么，说明资源根本没动</span></label><textarea class="inp" data-fn="sacrifice" rows="2">' + esc(b.sacrifice) + '</textarea></div>' +
-        '<div class="grid2">' +
-          '<div class="field"><label class="lbl">30 天真实动作 <span class="req">*</span><span class="hint">一次对外的真实交易或接触，不是内部论证</span></label><textarea class="inp" data-fn="probea" rows="2">' + esc(b.probe.a) + '</textarea></div>' +
-          '<div class="field"><label class="lbl">截止日 <span class="req">*</span><span class="hint">必须设在 30 天内</span></label><input class="inp" type="date" data-fn="probed" value="' + esc(b.probe.d) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fOwner') + '</label><input class="inp" data-fn="owner" value="' + esc(fshow(d, 'owner')) + '"></div>' +
+          '<div class="field revrow"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-fn="irreversible"' + (d.irreversible ? ' checked' : '') + '> ' + t('fIrreversible') + '</label></div>' +
         '</div>' +
       '</fieldset>' +
-      '<fieldset class="fieldset"><legend>判据（必须是先行指标）</legend>' +
+      '<fieldset class="fieldset"><legend>' + t('fsFive') + '</legend>' +
+        '<div class="field"><label class="lbl">' + t('fClaim') + ' <span class="req">*</span><span class="hint">' + t('fClaimHint') + '</span></label><textarea class="inp" data-fn="claim" rows="2">' + esc(fshow(d, 'claim')) + '</textarea></div>' +
+        '<div class="field"><label class="lbl">' + t('fBasis2') + ' <span class="req">*</span><span class="hint">' + t('fBasisHint') + '</span></label><textarea class="inp" data-fn="basis" rows="3">' + esc(d.basis.map(L).join('\n')) + '</textarea></div>' +
         '<div class="grid2">' +
-          '<div class="field"><label class="lbl">指标</label><input class="inp" data-fn="critm" value="' + esc(b.crit.m) + '"></div>' +
-          '<div class="field"><label class="lbl">类型</label><select class="inp" data-fn="critkind"><option value="leading"' + (b.crit.kind === 'leading' ? ' selected' : '') + '>先行（行为 / 早期信号）</option><option value="lagging"' + (b.crit.kind === 'lagging' ? ' selected' : '') + '>滞后（结果）</option></select></div>' +
+          '<div class="field"><label class="lbl">' + t('fKillT') + ' <span class="req">*</span><span class="hint">' + t('fKillHint') + '</span></label><textarea class="inp" data-fn="killt" rows="2">' + esc(fshow(d.kill, 't')) + '</textarea></div>' +
+          '<div class="field"><label class="lbl">' + t('fKillD') + ' <span class="req">*</span></label><input class="inp" type="date" data-fn="killd" value="' + esc(d.kill.d) + '"></div>' +
+        '</div>' +
+        '<div class="field"><label class="lbl">' + t('fSacrifice2') + ' <span class="req">*</span><span class="hint">' + t('fSacrificeHint') + '</span></label><textarea class="inp" data-fn="sacrifice" rows="2">' + esc(fshow(d, 'sacrifice')) + '</textarea></div>' +
+        '<div class="grid2">' +
+          '<div class="field"><label class="lbl">' + t('fProbeA') + ' <span class="req">*</span><span class="hint">' + t('fProbeHint') + '</span></label><textarea class="inp" data-fn="probea" rows="2">' + esc(fshow(d.probe, 'a')) + '</textarea></div>' +
+          '<div class="field"><label class="lbl">' + t('fProbeD') + ' <span class="req">*</span><span class="hint">' + t('fProbeDHint') + '</span></label><input class="inp" type="date" data-fn="probed" value="' + esc(d.probe.d) + '"></div>' +
+        '</div>' +
+      '</fieldset>' +
+      '<fieldset class="fieldset"><legend>' + t('fsCrit') + '</legend>' +
+        '<div class="grid2">' +
+          '<div class="field"><label class="lbl">' + t('fCritM') + '</label><input class="inp" data-fn="critm" value="' + esc(fshow(d.crit, 'm')) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritKind') + '</label><select class="inp" data-fn="critkind"><option value="leading"' + (d.crit.kind === 'leading' ? ' selected' : '') + '>' + t('optLeading') + '</option><option value="lagging"' + (d.crit.kind === 'lagging' ? ' selected' : '') + '>' + t('optLagging') + '</option></select></div>' +
         '</div>' +
         '<div class="grid3">' +
-          '<div class="field"><label class="lbl">单位</label><input class="inp" data-fn="critu" value="' + esc(b.crit.u) + '"></div>' +
-          '<div class="field"><label class="lbl">当前值</label><input class="inp" type="number" step="any" data-fn="critnow" value="' + esc(b.crit.now) + '"></div>' +
-          '<div class="field"><label class="lbl">阈值</label><input class="inp" type="number" step="any" data-fn="critthr" value="' + esc(b.crit.thr) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritU') + '</label><input class="inp" data-fn="critu" value="' + esc(fshow(d.crit, 'u')) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritNow') + '</label><input class="inp" type="number" step="any" data-fn="critnow" value="' + esc(d.crit.now) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritThr') + '</label><input class="inp" type="number" step="any" data-fn="critthr" value="' + esc(d.crit.thr) + '"></div>' +
         '</div>' +
         '<div class="grid2">' +
-          '<div class="field"><label class="lbl">方向</label><select class="inp" data-fn="critdir"><option value="up"' + (b.crit.direction !== 'down' ? ' selected' : '') + '>越高越好</option><option value="down"' + (b.crit.direction === 'down' ? ' selected' : '') + '>越低越好</option></select></div>' +
-          '<div class="field"><label class="lbl">取值来源</label><input class="inp" data-fn="critsrc" value="' + esc(b.crit.src) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritDir') + '</label><select class="inp" data-fn="critdir"><option value="up"' + (d.crit.direction !== 'down' ? ' selected' : '') + '>' + t('optUp') + '</option><option value="down"' + (d.crit.direction === 'down' ? ' selected' : '') + '>' + t('optDown') + '</option></select></div>' +
+          '<div class="field"><label class="lbl">' + t('fCritSrc') + '</label><input class="inp" data-fn="critsrc" value="' + esc(fshow(d.crit, 'src')) + '"></div>' +
         '</div>' +
       '</fieldset>' +
-      '<fieldset class="fieldset"><legend>必须为真（3–5 条，各打不确定性与致命性 1–5 分）</legend>' +
-        '<div id="mbtrows">' + b.mbt.map(mbtRow).join('') + '</div>' +
-        '<button type="button" class="addrow" id="add-mbt">+ 添加前提</button>' +
+      '<fieldset class="fieldset"><legend>' + t('fsMbt') + '（' + t('fMbtHint') + '）</legend>' +
+        '<div id="mbtrows">' + d.mbt.map(mbtRow).join('') + '</div>' +
+        '<button type="button" class="addrow" id="add-mbt">' + t('mbAdd') + '</button>' +
       '</fieldset>' +
-      '<fieldset class="fieldset"><legend>空头意见（轮值，任务是论证它失败，不许附和）</legend>' +
+      '<fieldset class="fieldset"><legend>' + t('fsShort') + '</legend>' +
         '<div class="grid2">' +
-          '<div class="field"><label class="lbl">空头</label><input class="inp" data-fn="shortby" value="' + esc(b.short.by) + '"></div>' +
-          '<div class="field"><label class="lbl">季度</label><input class="inp" data-fn="shortq" value="' + esc(b.short.q) + '" placeholder="如 2026 Q3"></div>' +
+          '<div class="field"><label class="lbl">' + t('fShortBy') + '</label><input class="inp" data-fn="shortby" value="' + esc(fshow(d.short, 'by')) + '"></div>' +
+          '<div class="field"><label class="lbl">' + t('fShortQ') + '</label><input class="inp" data-fn="shortq" value="' + esc(fshow(d.short, 'q')) + '" placeholder="' + t('fShortQPh') + '"></div>' +
         '</div>' +
-        '<div class="field"><label class="lbl">为什么这个赌注会失败</label><textarea class="inp" data-fn="shortarg" rows="2">' + esc(b.short.arg) + '</textarea></div>' +
-        '<div class="field"><label class="lbl">证伪信号登记</label><div id="sigrows">' + (b.short.sigs || []).map(sigRow).join('') + '</div>' +
-        '<button type="button" class="addrow" id="add-sig">+ 登记信号</button></div>' +
+        '<div class="field"><label class="lbl">' + t('fShortArg') + '</label><textarea class="inp" data-fn="shortarg" rows="2">' + esc(fshow(d.short, 'arg')) + '</textarea></div>' +
+        '<div class="field"><label class="lbl">' + t('fSigT') + '</label><div id="sigrows">' + (d.short.sigs || []).map(sigRow).join('') + '</div>' +
+        '<button type="button" class="addrow" id="add-sig">' + t('sigAdd') + '</button></div>' +
       '</fieldset>' +
       '<div class="formfoot">' +
-        '<button type="submit" class="btn primary">保存（受体检硬拦截）</button>' +
-        '<button type="button" class="btn ghost purple" id="me-cancel">取消</button>' +
-        '<span class="note">放弃、停损、30 天动作、先行指标不满足将无法保存</span>' +
+        '<button type="submit" class="btn primary">' + t('save') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="ai-translate">⚡ ' + t('aiTranslate') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
+        '<span class="note">' + t('saveNote') + '</span>' +
       '</div>' +
       '</form>';
 
     $('add-mbt').addEventListener('click', function () {
       var rows = body.querySelectorAll('.mbtrow');
-      var k = String.fromCharCode(97 + rows.length); /* a, b, c … */
-      var div = document.createElement('div'); div.innerHTML = mbtRow({ k: k });
+      var k = String.fromCharCode(97 + rows.length);
+      var div = document.createElement('div'); div.innerHTML = mbtRow({ k: k, t: bi(), u: 1, l: 1 });
       $('mbtrows').appendChild(div.firstChild);
     });
     $('add-sig').addEventListener('click', function () {
-      var div = document.createElement('div'); div.innerHTML = sigRow({});
+      var div = document.createElement('div'); div.innerHTML = sigRow({ d: '', t: bi(), by: bi() });
       $('sigrows').appendChild(div.firstChild);
     });
     body.addEventListener('click', function (e) {
@@ -125,70 +149,176 @@
       if (del) { var row = del.closest('.mbtrow, .sigrow'); if (row && row.parentNode) row.parentNode.removeChild(row); }
     });
     $('me-cancel').addEventListener('click', close);
+    $('ai-translate').addEventListener('click', function () { aiTranslate(); });
     $('betform').addEventListener('submit', function (e) {
       e.preventDefault();
-      submitBet(isNew, b.id);
+      submitBet(isNew, d, origId);
     });
     open();
   }
 
   function flagBad(fn, bad) { body.querySelectorAll('[data-fn="' + fn + '"]').forEach(function (el) { el.dataset.flag = bad ? 'bad' : ''; }); }
   function clearFlags() { body.querySelectorAll('[data-flag="bad"]').forEach(function (el) { el.dataset.flag = ''; }); }
+  function showNote(msg, kind) {
+    var el = $('eok');
+    el.hidden = false;
+    el.textContent = msg;
+    el.className = 'editorok' + (kind === 'err' ? ' err' : '');
+  }
 
-  function submitBet(isNew, oldId) {
+  /* ---------------- AI 一键翻译（商业语境，不直译） ---------------- */
+  function collectI18n() {
+    var q = function (fn) { var el = body.querySelector('[data-fn="' + fn + '"]'); return el ? el.value.trim() : ''; };
+    var mbt = [], sigs = [];
+    body.querySelectorAll('.mbtrow').forEach(function (r) {
+      var tt = r.querySelector('[data-fn="mbt"]').value.trim();
+      if (tt) mbt.push({ t: tt });
+    });
+    body.querySelectorAll('.sigrow').forEach(function (r) {
+      var tt = r.querySelector('[data-fn="sigtext"]').value.trim();
+      if (tt) sigs.push({ t: tt, by: r.querySelector('[data-fn="sigby"]').value.trim() });
+    });
+    return {
+      claim: q('claim'), basis: q('basis').split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
+      kill_t: q('killt'), sacrifice: q('sacrifice'), probe_a: q('probea'),
+      crit_m: q('critm'), crit_u: q('critu'), crit_src: q('critsrc'), owner: q('owner'),
+      mbt: mbt, sigs: sigs, short_by: q('shortby'), short_q: q('shortq'), short_arg: q('shortarg')
+    };
+  }
+
+  function buildTranslatePrompt(srcLang, payload) {
+    var dir = srcLang === 'zh'
+      ? '把输入 JSON 中的中文翻译成地道英文（US business English）。'
+      : '把输入 JSON 中的英文翻译成地道中文（简体，商业语境）。';
+    return '你是 KEHU（客湖科技）的商业战略文档翻译专家。' + dir + '\n' +
+      '规则：\n' +
+      '1. 按商业与战略语境翻译，绝不逐字直译；遵循目标语言商务表达习惯（英文用名词短语与主动语态，中文用动宾结构与短句）。\n' +
+      '2. 术语对照：赌注=bet，停损/kill condition，先行指标=leading indicator，滞后指标=lagging indicator，必须为真=must-be-true premise，空头意见=short case，证伪信号=falsification signal，资源投向=resource allocation，30天真实动作=30-day real action，数据成功=Data Success，技术成功=Tech Success，客户成功=Client Success，未归属战略的存量交付=legacy work，报价单=quote/proposal，固定包干价=fixed package price。\n' +
+      '3. 保持 JSON 键名与结构完全一致，只翻译字符串的值；不翻译日期、数字、英文专名（如人名、产品名）、已为英文的术语。\n' +
+      '4. 直接输出 JSON，不要 markdown 代码块标记，不要任何解释文字。\n\n' +
+      '输入 JSON：\n' + JSON.stringify(payload, null, 1);
+  }
+
+  function cleanJson(s) {
+    s = String(s || '').trim();
+    s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    var a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a >= 0 && b > a) s = s.slice(a, b + 1);
+    return s;
+  }
+
+  function aiTranslate() {
+    var btn = $('ai-translate');
+    var srcLang = getLang(), dstLang = srcLang === 'zh' ? 'en' : 'zh';
+    var payload = collectI18n();
+    if (!payload.claim && !payload.sacrifice && !payload.kill_t && !payload.basis.length) {
+      showNote(t('aiFail', { msg: 'empty' }), 'err'); return;
+    }
+    btn.disabled = true; btn.textContent = t('aiTranslating');
+    var prompt = buildTranslatePrompt(srcLang, payload);
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 3000
+      })
+    })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (data) {
+      var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error('empty response');
+      pendingDst = JSON.parse(cleanJson(content));
+      showNote(t('aiDone', { dst: dstLang === 'en' ? 'English' : '中文' }), 'ok');
+    })
+    .catch(function (e) { showNote(t('aiFail', { msg: e.message }), 'err'); })
+    .finally(function () { btn.disabled = false; btn.textContent = '⚡ ' + t('aiTranslate'); });
+  }
+
+  /* 把翻译结果写入 draft 的目标语言槽位 */
+  function writeTranslated(d, o, dl) {
+    d.claim = setL(d.claim, o.claim || '', dl);
+    d.owner = setL(d.owner, o.owner || '', dl);
+    if (Array.isArray(o.basis)) d.basis = o.basis.map(function (x) { return setL(bi(), x, dl); });
+    d.kill.t = setL(d.kill.t, o.kill_t || '', dl);
+    d.sacrifice = setL(d.sacrifice, o.sacrifice || '', dl);
+    d.probe.a = setL(d.probe.a, o.probe_a || '', dl);
+    d.crit.m = setL(d.crit.m, o.crit_m || '', dl);
+    d.crit.u = setL(d.crit.u, o.crit_u || '', dl);
+    d.crit.src = setL(d.crit.src, o.crit_src || '', dl);
+    d.short.by = setL(d.short.by, o.short_by || '', dl);
+    d.short.q = setL(d.short.q, o.short_q || '', dl);
+    d.short.arg = setL(d.short.arg, o.short_arg || '', dl);
+    (o.mbt || []).forEach(function (m, i) { if (d.mbt[i]) d.mbt[i].t = setL(d.mbt[i].t, m.t || '', dl); });
+    (o.sigs || []).forEach(function (s, i) {
+      if (d.short.sigs[i]) { d.short.sigs[i].t = setL(d.short.sigs[i].t, s.t || '', dl); d.short.sigs[i].by = setL(d.short.sigs[i].by, s.by || '', dl); }
+    });
+  }
+
+  /* ---------------- 保存（体检硬拦截） ---------------- */
+  function submitBet(isNew, d, origId) {
     var q = function (fn) { var el = body.querySelector('[data-fn="' + fn + '"]'); return el ? el.value.trim() : ''; };
     var errors = [];
 
-    /* 收集 */
-    var bet = {
-      id: q('id') || nextId(),
-      engine: q('engine') || 'data',
-      irreversible: body.querySelector('[data-fn="irreversible"]').checked,
-      owner: q('owner'),
-      claim: q('claim'),
-      basis: q('basis').split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
-      kill: { t: q('killt'), d: q('killd') },
-      sacrifice: q('sacrifice'),
-      probe: { a: q('probea'), d: q('probed') },
-      crit: { m: q('critm'), kind: q('critkind'), u: q('critu'), now: +q('critnow') || 0, thr: +q('critthr') || 0, direction: q('critdir') || 'up', src: q('critsrc') },
-      mbt: [],
-      short: { by: q('shortby'), q: q('shortq'), arg: q('shortarg'), sigs: [] },
-      rv: [],
-      createdAt: ''
-    };
+    /* 当前语言字段写入 draft */
+    d.id = q('id') || nextId();
+    d.engine = q('engine') || 'data';
+    d.irreversible = body.querySelector('[data-fn="irreversible"]').checked;
+    fset(d, 'owner', q('owner'));
+    fset(d, 'claim', q('claim'));
+    d.basis = q('basis').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).map(function (x) { return setL(bi(), x, getLang()); });
+    fset(d.kill, 't', q('killt')); d.kill.d = q('killd');
+    fset(d, 'sacrifice', q('sacrifice'));
+    fset(d.probe, 'a', q('probea')); d.probe.d = q('probed');
+    fset(d.crit, 'm', q('critm')); d.crit.kind = q('critkind'); fset(d.crit, 'u', q('critu'));
+    d.crit.now = +q('critnow') || 0; d.crit.thr = +q('critthr') || 0;
+    d.crit.direction = q('critdir') || 'up'; fset(d.crit, 'src', q('critsrc'));
+    d.mbt = [];
     body.querySelectorAll('.mbtrow').forEach(function (r) {
-      var t = r.querySelector('[data-fn="mbt"]').value.trim();
-      if (!t) return;
-      bet.mbt.push({
+      var tt = r.querySelector('[data-fn="mbt"]').value.trim();
+      if (!tt) return;
+      d.mbt.push({
         k: (r.querySelector('[data-fn="mbk"]').value.trim() || 'x'),
-        t: t,
+        t: setL(bi(), tt, getLang()),
         u: Math.min(5, Math.max(1, +r.querySelector('[data-fn="mbu"]').value || 1)),
         l: Math.min(5, Math.max(1, +r.querySelector('[data-fn="mbl"]').value || 1))
       });
     });
+    d.short.sigs = [];
     body.querySelectorAll('.sigrow').forEach(function (r) {
-      var t = r.querySelector('[data-fn="sigtext"]').value.trim();
-      if (!t) return;
-      bet.short.sigs.push({ d: r.querySelector('[data-fn="sigd"]').value, t: t, by: r.querySelector('[data-fn="sigby"]').value.trim() });
+      var tt = r.querySelector('[data-fn="sigtext"]').value.trim();
+      if (!tt) return;
+      d.short.sigs.push({ d: r.querySelector('[data-fn="sigd"]').value, t: setL(bi(), tt, getLang()), by: setL(bi(), r.querySelector('[data-fn="sigby"]').value.trim(), getLang()) });
     });
+    fset(d.short, 'by', q('shortby')); fset(d.short, 'q', q('shortq')); fset(d.short, 'arg', q('shortarg'));
+
+    /* 合并 AI 翻译结果（若存在） */
+    if (pendingDst) {
+      var dl = getLang() === 'zh' ? 'en' : 'zh';
+      writeTranslated(d, pendingDst, dl);
+    }
 
     /* 基础校验 */
     clearFlags();
-    if (!bet.claim) { errors.push('我们赌什么不能为空。判断不了真假的不是赌注。'); flagBad('claim', true); }
-    if (!bet.basis.length) { errors.push('凭什么至少一条已发生的事实。不接受“我认为”。'); flagBad('basis', true); }
-    if (bet.mbt.length < 3 || bet.mbt.length > 5) { errors.push('必须为真需要 3–5 条前提，当前 ' + bet.mbt.length + ' 条。'); }
-    var dup = PS.bets.filter(function (x) { return x.id === bet.id && x.id !== oldId; });
-    if (!bet.id || dup.length) { errors.push('编号为空或与现有赌注重复。'); flagBad('id', true); }
+    var anyL = function (v) { v = norm(v); return !!(v.zh || v.en); };
+    if (!anyL(d.claim)) { errors.push(t('edClaimEmpty')); flagBad('claim', true); }
+    if (!d.basis.length) { errors.push(t('edBasisEmpty')); flagBad('basis', true); }
+    if (d.mbt.length < 3 || d.mbt.length > 5) { errors.push(t('edMbtCount', { n: d.mbt.length })); }
+    var dup = PS.bets.filter(function (x) { return x.id === d.id && x.id !== origId; });
+    if (!d.id || dup.length) { errors.push(t('edIdDup')); flagBad('id', true); }
 
-    /* 体检硬拦截（指引第 3 节：体检是硬拦截，不是提示） */
-    var a = PC.audit(bet);
+    /* 体检硬拦截（指引第 3 节） */
+    var a = PC.audit(d);
     a.forEach(function (c) {
       if (c.ok) return;
       errors.push(c.why);
-      if (c.k === '放弃') flagBad('sacrifice', true);
-      if (c.k === '可观测停损') { flagBad('killt', true); flagBad('killd', true); }
-      if (c.k === '30天动作') { flagBad('probea', true); flagBad('probed', true); }
-      if (c.k === '先行指标') flagBad('critkind', true);
+      if (c.k === t('checkSacrifice')) flagBad('sacrifice', true);
+      if (c.k === t('checkKill')) { flagBad('killt', true); flagBad('killd', true); }
+      if (c.k === t('checkProbe')) { flagBad('probea', true); flagBad('probed', true); }
+      if (c.k === t('checkLeading')) flagBad('critkind', true);
     });
 
     if (errors.length) {
@@ -199,41 +329,39 @@
       return;
     }
 
-    /* 保存 */
-    var wasNew = isNew || !PS.bets.some(function (x) { return x.id === oldId; });
-    if (wasNew) {
-      PS.bets.push(bet);
+    if (origId) {
+      /* 编辑：移除原编号（id 可能被改），写入新对象 */
+      PS.bets = PS.bets.filter(function (x) { return x.id !== origId; }).concat([d]);
     } else {
-      PS.bets = PS.bets.map(function (x) { return x.id === oldId ? bet : x; });
+      PS.bets.push(d);
     }
     PS.save(); PS.refresh(); close();
   }
 
   /* ================= 资源投向配比 ================= */
   function allocForm() {
-    var al = PS.alloc;
-    title.textContent = '编辑资源投向 · ' + al.quarter;
+    var al = JSON.parse(JSON.stringify(PS.alloc));
+    lang = getLang();
+    title.textContent = t('allocEditTitle', { q: L(al.quarter) });
     var rows = PC.ENG_ORDER.concat(['legacy']).map(function (k) {
       var r = al.rows.filter(function (x) { return x.k === k; })[0] || { stated: 0, actual: 0 };
       return '<div class="grid3">' +
-        '<div class="field"><label class="lbl">' + PC.ALLOC_NAME[k] + '</label><input class="inp" value="' + PC.ALLOC_NAME[k] + '" disabled></div>' +
-        '<div class="field"><label class="lbl">声称配比 %</label><input class="inp" type="number" min="0" max="100" data-fn="st-' + k + '" value="' + r.stated + '"></div>' +
-        '<div class="field"><label class="lbl">实际人天 %</label><input class="inp" type="number" min="0" max="100" data-fn="ac-' + k + '" value="' + r.actual + '"></div>' +
+        '<div class="field"><label class="lbl">' + t(PC.ALLOC_NAME[k]) + '</label><input class="inp" value="' + esc(t(PC.ALLOC_NAME[k])) + '" disabled></div>' +
+        '<div class="field"><label class="lbl">' + t('fStated') + '</label><input class="inp" type="number" min="0" max="100" data-fn="st-' + k + '" value="' + r.stated + '"></div>' +
+        '<div class="field"><label class="lbl">' + t('fActual') + '</label><input class="inp" type="number" min="0" max="100" data-fn="ac-' + k + '" value="' + r.actual + '"></div>' +
       '</div>';
     }).join('');
     body.innerHTML =
       '<form id="allocform" novalidate>' +
-      '<fieldset class="fieldset"><legend>季度</legend>' +
-        '<div class="grid2">' +
-          '<div class="field"><label class="lbl">季度标识</label><input class="inp" data-fn="quarter" value="' + esc(al.quarter) + '"></div>' +
-        '</div>' +
+      '<fieldset class="fieldset"><legend>' + t('fQuarter') + '</legend>' +
+        '<div class="field"><label class="lbl">' + t('fQuarter') + '</label><input class="inp" data-fn="quarter" value="' + esc(L(al.quarter)) + '"></div>' +
       '</fieldset>' +
-      '<fieldset class="fieldset"><legend>配比（%）</legend>' + rows + '</fieldset>' +
-      '<div class="field"><label class="lbl">取数说明</label><textarea class="inp" data-fn="source" rows="2">' + esc(al.source) + '</textarea></div>' +
+      '<fieldset class="fieldset"><legend>' + t('fsAlloc') + '</legend>' + rows + '</fieldset>' +
+      '<div class="field"><label class="lbl">' + t('fSource') + '</label><textarea class="inp" data-fn="source" rows="2">' + esc(L(al.source)) + '</textarea></div>' +
       '<div class="formfoot">' +
-        '<button type="submit" class="btn primary">保存</button>' +
-        '<button type="button" class="btn ghost purple" id="me-cancel">取消</button>' +
-        '<span class="note">差值 ≥10 个百分点会自动标红</span>' +
+        '<button type="submit" class="btn primary">' + t('save') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
+        '<span class="note">' + t('allocGapNote') + '</span>' +
       '</div></form>';
     $('me-cancel').addEventListener('click', close);
     $('allocform').addEventListener('submit', function (e) {
@@ -243,26 +371,29 @@
       });
       var sum = rows2.reduce(function (n, r) { return n + r.actual; }, 0);
       if (Math.abs(sum - 100) > 0.5) {
-        window.alert('实际人天占比合计 ' + sum + '%，应约为 100%。');
+        window.alert(t('allocSumErr', { n: sum }));
         return;
       }
-      PS.setAlloc({ quarter: body.querySelector('[data-fn="quarter"]').value.trim() || '未命名季度', source: body.querySelector('[data-fn="source"]').value.trim(), rows: rows2 });
-      PS.save(); PS.refresh(); close();
+      al.quarter = setL(al.quarter, body.querySelector('[data-fn="quarter"]').value.trim() || '未命名季度', getLang());
+      al.source = setL(al.source, body.querySelector('[data-fn="source"]').value.trim(), getLang());
+      al.rows = rows2;
+      PS.setAlloc(al); PS.save(); PS.refresh(); close();
     });
     open();
   }
 
   /* ================= 三年方向 ================= */
   function nsForm() {
-    title.textContent = '三年方向陈述';
+    lang = getLang();
+    title.textContent = t('nsTitle');
     body.innerHTML =
-      '<div class="editorfails" id="efails" hidden><b>保存被拒绝</b><div id="efailslist"></div></div>' +
+      '<div class="editorfails" id="efails" hidden><b>' + t('edRejected') + '</b><div id="efailslist"></div></div>' +
       '<form id="nsform" novalidate>' +
-      '<div class="field"><label class="lbl">三年方向 <span class="hint">一句方向陈述，不带任何数字，不参与任何计算</span></label>' +
-      '<textarea class="inp" data-fn="ns" rows="3">' + esc(PS.northstar) + '</textarea></div>' +
+      '<div class="field"><label class="lbl">' + t('fNs') + ' <span class="hint">' + t('fNsHint') + '</span></label>' +
+      '<textarea class="inp" data-fn="ns" rows="3">' + esc(L(PS.northstar)) + '</textarea></div>' +
       '<div class="formfoot">' +
-        '<button type="submit" class="btn primary">保存</button>' +
-        '<button type="button" class="btn ghost purple" id="me-cancel">取消</button>' +
+        '<button type="submit" class="btn primary">' + t('save') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
       '</div></form>';
     $('me-cancel').addEventListener('click', close);
     $('nsform').addEventListener('submit', function (e) {
@@ -270,11 +401,13 @@
       var v = body.querySelector('[data-fn="ns"]').value.trim();
       if (/\d/.test(v)) {
         $('efails').hidden = false;
-        $('efailslist').innerHTML = '<p style="margin:2px 0">· 三年方向不允许出现任何数字。所有量化判据只存在于 90 天这一层。</p>';
+        $('efailslist').innerHTML = '<p style="margin:2px 0">· ' + esc(t('nsDigitErr')) + '</p>';
         return;
       }
-      if (!v) { window.alert('方向陈述不能为空。'); return; }
-      PS.setNorthstar(v); PS.save(); PS.refresh(); close();
+      if (!v) { window.alert(t('nsEmptyErr')); return; }
+      var ns = norm(PS.northstar);
+      ns = setL(ns, v, getLang());
+      PS.setNorthstar(ns); PS.save(); PS.refresh(); close();
     });
     open();
   }

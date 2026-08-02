@@ -33,6 +33,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .btn.ghost:hover{background:rgba(255,255,255,.22)}
 .btn.ghost.purple{background:var(--kehu-purple-tint);border:1px solid var(--kehu-purple-mid);color:var(--kehu-purple-deep)}
 .btn.ghost.purple:hover{background:#EADFF1}
+.langbtn{flex:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.34);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.06em;padding:4px 11px;border-radius:4px}
+.langbtn:hover{background:rgba(255,255,255,.24)}
+.editorok{background:#F1F9F7;border:1px solid #CFE7E2;color:var(--ok);border-radius:6px;padding:9px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6}
+.editorok.err{background:#FCEEF3;border-color:var(--alert);color:var(--alert)}
 .btn.danger{background:#fff;border:1px solid var(--alert);color:var(--alert)}
 .btn.danger:hover{background:#FCEEF3}
 .btn.small{padding:3px 9px;font-size:11px;border-radius:4px}

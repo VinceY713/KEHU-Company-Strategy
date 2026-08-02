@@ -1,13 +1,13 @@
 /* ============================================================
-   PlayCARD v2 · 渲染层
+   PlayCARD v2 · 渲染层（中英双语）
    赌注台 / 必须为真矩阵 / 资源投向对照 / 详情抽屉
-   数据持久化到 localStorage，本地修改通过编辑器写入。
+   数据持久化 localStorage，语言切换后整体重渲染
    ============================================================ */
 'use strict';
 (function () {
-  var PC = window.PlayCARD;
+  var PC = window.PlayCARD, I18N = window.PlayI18N;
+  var t = I18N.t, L = I18N.L, norm = I18N.norm, esc = PC.esc;
   var $ = function (id) { return document.getElementById(id); };
-  var esc = PC.esc;
   var LS_BETS = 'playcard.v2.bets', LS_ALLOC = 'playcard.v2.alloc', LS_NS = 'playcard.v2.northstar';
 
   function load(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
@@ -19,10 +19,10 @@
     } catch (e) { /* 隐私模式等场景静默失败 */ }
   }
 
-  /* ---------------- 状态 ---------------- */
-  var bets = load(LS_BETS) || JSON.parse(JSON.stringify(PC.SEED_BETS));
-  var alloc = load(LS_ALLOC) || JSON.parse(JSON.stringify(PC.SEED_ALLOC));
-  var northstar = load(LS_NS) || PC.SEED_NORTHSTAR;
+  /* ---------------- 状态（加载时迁移为双语结构） ---------------- */
+  var bets = (load(LS_BETS) || JSON.parse(JSON.stringify(PC.SEED_BETS))).map(PC.migrateBet);
+  var alloc = PC.migrateAlloc(load(LS_ALLOC) || JSON.parse(JSON.stringify(PC.SEED_ALLOC)));
+  var northstar = norm(load(LS_NS) || PC.SEED_NORTHSTAR);
   var sel = bets.length ? bets[0].id : 'B-01';
 
   window.PlayState = {
@@ -37,14 +37,25 @@
   };
 
   function resetSeed() {
-    if (!window.confirm('重置为种子数据？当前本地录入的赌注与配比会被覆盖。')) return;
-    bets = JSON.parse(JSON.stringify(PC.SEED_BETS));
-    alloc = JSON.parse(JSON.stringify(PC.SEED_ALLOC));
-    northstar = PC.SEED_NORTHSTAR;
+    if (!window.confirm(t('resetConfirm'))) return;
+    bets = JSON.parse(JSON.stringify(PC.SEED_BETS)).map(PC.migrateBet);
+    alloc = PC.migrateAlloc(JSON.parse(JSON.stringify(PC.SEED_ALLOC)));
+    northstar = norm(PC.SEED_NORTHSTAR);
     sel = bets[0].id;
     save();
     renderAll();
   }
+
+  /* ---------------- 语言切换 ---------------- */
+  function setLangUI() {
+    var btn = $('lang-btn');
+    btn.textContent = I18N.isEn() ? t('switchLang') : 'EN';
+    btn.title = I18N.isEn() ? 'Switch to 中文' : 'Switch to English';
+  }
+  $('lang-btn').addEventListener('click', function () {
+    I18N.setLang(I18N.isEn() ? 'zh' : 'en');
+    renderAll();
+  });
 
   /* ---------------- 顶部 ---------------- */
   function renderStrip() {
@@ -52,11 +63,11 @@
     var focus = bets.reduce(function (n, b) { return n + PC.hot(b).length; }, 0);
     var legacyRow = alloc.rows.filter(function (r) { return r.k === 'legacy'; })[0];
     $('strip').innerHTML =
-      '<div class="stat"><div class="k">在册赌注</div><div class="v">' + bets.length + '<em>个</em></div></div>' +
-      '<div class="stat' + (bad ? ' bad' : '') + '"><div class="k">体检未通过</div><div class="v">' + bad + '<em>个</em></div></div>' +
-      '<div class="stat focus"><div class="k">本季验证焦点</div><div class="v">' + focus + '<em>条前提</em></div></div>' +
-      '<div class="stat bad"><div class="k">未归属战略的投入</div><div class="v">' + (legacyRow ? legacyRow.actual : '-') + '%<em>上季人天</em></div></div>' +
-      '<div class="stat"><div class="k">逾期的对外动作</div><div class="v">' + bets.filter(function (b) { return b.probe && b.probe.d && PC.days(b.probe.d) < 0; }).length + '<em>个</em></div></div>';
+      '<div class="stat"><div class="k">' + t('statBets') + '</div><div class="v">' + bets.length + '<em>' + t('unitBet') + '</em></div></div>' +
+      '<div class="stat' + (bad ? ' bad' : '') + '"><div class="k">' + t('statFails') + '</div><div class="v">' + bad + '<em>' + t('unitFail') + '</em></div></div>' +
+      '<div class="stat focus"><div class="k">' + t('statFocus') + '</div><div class="v">' + focus + '<em>' + t('unitFocus') + '</em></div></div>' +
+      '<div class="stat bad"><div class="k">' + t('statLegacy') + '</div><div class="v">' + (legacyRow ? legacyRow.actual : '-') + '%<em>' + t('unitLegacy') + '</em></div></div>' +
+      '<div class="stat"><div class="k">' + t('statOverdue') + '</div><div class="v">' + bets.filter(function (b) { return b.probe && b.probe.d && PC.days(b.probe.d) < 0; }).length + '<em>' + t('unitOverdue') + '</em></div></div>';
   }
 
   /* ---------------- 赌注卡 ---------------- */
@@ -64,23 +75,24 @@
     var a = PC.audit(b), f = PC.failCount(b);
     var scale = Math.max(b.crit.thr, b.crit.now) * 1.25 || 1;
     var pd = b.probe.d ? PC.days(b.probe.d) : null, kd = b.kill.d ? PC.days(b.kill.d) : null;
+    var probeTxt = pd === null ? t('notSet') : (pd < 0 ? t('daysOverdue', { n: -pd }) : t('daysLeft', { n: pd }));
     return '<div class="bet ' + (b.id === sel ? 'sel' : '') + (f >= 3 ? ' dead' : '') + '" data-id="' + esc(b.id) + '" tabindex="0" role="button" aria-pressed="' + (b.id === sel) + '">' +
       '<div class="bhead">' +
-        '<span class="code">' + esc(b.id) + '</span><span class="eng">' + PC.ENG[b.engine] + '</span>' +
-        (b.irreversible ? '<span class="irr">不可逆</span>' : '<span class="rev">可逆</span>') +
-        '<button class="editbtn onlydesktop" data-edit="' + esc(b.id) + '" aria-label="编辑 ' + esc(b.id) + '">编辑</button>' +
+        '<span class="code">' + esc(b.id) + '</span><span class="eng">' + t(PC.ENG_KEY[b.engine]) + '</span>' +
+        (b.irreversible ? '<span class="irr">' + t('irr') + '</span>' : '<span class="rev">' + t('rev') + '</span>') +
+        '<button class="editbtn onlydesktop" data-edit="' + esc(b.id) + '" aria-label="' + t('edit') + ' ' + esc(b.id) + '">' + t('edit') + '</button>' +
       '</div>' +
-      '<p class="claim">' + esc(b.claim) + '</p>' +
-      '<div class="checks">' + a.map(function (c) { return '<span class="chk ' + (c.ok ? 'pass' : 'fail') + '" title="' + (c.ok ? '通过' : esc(c.why)) + '">' + (c.ok ? '' : '缺 ') + esc(c.k) + '</span>'; }).join('') + '</div>' +
+      '<p class="claim">' + esc(L(b.claim)) + '</p>' +
+      '<div class="checks">' + a.map(function (c) { return '<span class="chk ' + (c.ok ? 'pass' : 'fail') + '" title="' + (c.ok ? 'OK' : esc(c.why)) + '">' + (c.ok ? '' : t('missing')) + esc(c.k) + '</span>'; }).join('') + '</div>' +
       '<div class="crit">' +
-        '<div class="m"><span class="kind ' + b.crit.kind + '">' + (b.crit.kind === 'leading' ? '先行' : '滞后') + '</span>' + esc(b.crit.m) + '</div>' +
+        '<div class="m"><span class="kind ' + b.crit.kind + '">' + (b.crit.kind === 'leading' ? t('leading') : t('lagging')) + '</span>' + esc(L(b.crit.m)) + '</div>' +
         '<div class="track"><div class="fill" style="width:' + Math.min(100, b.crit.now / scale * 100) + '%"></div><div class="mark2" style="left:' + Math.min(100, b.crit.thr / scale * 100) + '%"></div></div>' +
-        '<div class="read">' + esc(b.crit.now) + esc(b.crit.u) + '<span>阈值 ' + esc(b.crit.thr) + esc(b.crit.u) + '</span></div>' +
+        '<div class="read">' + esc(b.crit.now) + esc(L(b.crit.u)) + '<span>' + t('threshold') + ' ' + esc(b.crit.thr) + esc(L(b.crit.u)) + '</span></div>' +
       '</div>' +
       '<div class="clocks">' +
-        '<div class="clock' + (pd !== null && pd < 0 ? ' over' : '') + '"><em>30 天动作</em><b>' + (pd === null ? '未设' : (pd < 0 ? '逾期 ' + (-pd) + ' 天' : '剩 ' + pd + ' 天')) + '</b></div>' +
-        '<div class="clock' + (kd === null ? ' over' : '') + '"><em>停损日</em><b>' + (kd === null ? '未设' : esc(b.kill.d.slice(5))) + '</b></div>' +
-        '<button class="more" data-open="' + esc(b.id) + '">展开</button>' +
+        '<div class="clock' + (pd !== null && pd < 0 ? ' over' : '') + '"><em>' + t('clockProbe') + '</em><b>' + probeTxt + '</b></div>' +
+        '<div class="clock' + (kd === null ? ' over' : '') + '"><em>' + t('clockKill') + '</em><b>' + (kd === null ? t('notSet') : esc(b.kill.d.slice(5))) + '</b></div>' +
+        '<button class="more" data-open="' + esc(b.id) + '">' + t('expand') + '</button>' +
       '</div>' +
     '</div>';
   }
@@ -107,21 +119,21 @@
   function renderMatrix() {
     var b = bets.filter(function (x) { return x.id === sel; })[0] || bets[0];
     if (!b) return;
-    $('mxlede').textContent = b.id + '　' + b.claim;
+    $('mxlede').textContent = b.id + '　' + L(b.claim);
     var X = function (v) { return 52 + (v - 1) / 4 * 386; }, Y = function (v) { return 258 - (v - 1) / 4 * 228; };
     var hotSet = {};
     PC.hot(b).forEach(function (m) { hotSet[m.k] = true; });
     var s = '';
     s += '<rect x="' + X(3.5) + '" y="' + (Y(5) - 16) + '" width="' + (X(5) - X(3.5) + 30) + '" height="' + (Y(3.5) - Y(5) + 16) + '" fill="var(--kehu-gold-tint)" stroke="var(--kehu-gold)" stroke-width="1" rx="4"/>';
-    s += '<text x="' + (X(3.5) + 8) + '" y="' + (Y(5) - 4) + '" font-size="10.5" font-weight="700" fill="#3D004F" letter-spacing="0.5">本季度唯一该验证的</text>';
+    s += '<text x="' + (X(3.5) + 8) + '" y="' + (Y(5) - 4) + '" font-size="10.5" font-weight="700" fill="#3D004F" letter-spacing="0.5">' + esc(t('hotZone')) + '</text>';
     s += '<line x1="52" y1="258" x2="468" y2="258" stroke="var(--line)" stroke-width="1"/>';
     s += '<line x1="52" y1="20" x2="52" y2="258" stroke="var(--line)" stroke-width="1"/>';
-    s += '<text x="52" y="284" font-size="10.5" fill="var(--muted)">低</text>';
-    s += '<text x="438" y="284" font-size="10.5" fill="var(--muted)">高</text>';
-    s += '<text x="200" y="300" font-size="11" fill="var(--ink-soft)" font-weight="600">不确定性</text>';
-    s += '<text x="46" y="258" font-size="10.5" fill="var(--muted)" text-anchor="end">低</text>';
-    s += '<text x="46" y="34" font-size="10.5" fill="var(--muted)" text-anchor="end">高</text>';
-    s += '<text x="18" y="160" font-size="11" fill="var(--ink-soft)" font-weight="600" transform="rotate(-90 18 160)" text-anchor="middle">致命性</text>';
+    s += '<text x="52" y="284" font-size="10.5" fill="var(--muted)">' + t('low') + '</text>';
+    s += '<text x="438" y="284" font-size="10.5" fill="var(--muted)">' + t('high') + '</text>';
+    s += '<text x="200" y="300" font-size="11" fill="var(--ink-soft)" font-weight="600">' + t('uncertainty') + '</text>';
+    s += '<text x="46" y="258" font-size="10.5" fill="var(--muted)" text-anchor="end">' + t('low') + '</text>';
+    s += '<text x="46" y="34" font-size="10.5" fill="var(--muted)" text-anchor="end">' + t('high') + '</text>';
+    s += '<text x="18" y="160" font-size="11" fill="var(--ink-soft)" font-weight="600" transform="rotate(-90 18 160)" text-anchor="middle">' + t('lethality') + '</text>';
     b.mbt.forEach(function (m) {
       var isHot = hotSet[m.k];
       s += '<circle cx="' + X(m.u) + '" cy="' + Y(m.l) + '" r="' + (isHot ? 15 : 12) + '" fill="' + (isHot ? 'var(--kehu-gold)' : 'var(--kehu-purple-tint)') + '" stroke="' + (isHot ? 'var(--kehu-purple-deep)' : 'var(--kehu-purple-mid)') + '" stroke-width="' + (isHot ? 2 : 1.5) + '"/>';
@@ -129,22 +141,22 @@
     });
     $('mx').innerHTML = s;
     $('mxlegend').innerHTML = b.mbt.map(function (m) {
-      return '<li class="' + (hotSet[m.k] ? 'hot' : '') + '"><span class="tag">' + esc(m.k) + '</span><span>' + esc(m.t) + '</span><span class="sc">不确定 ' + m.u + ' · 致命 ' + m.l + '</span></li>';
+      return '<li class="' + (hotSet[m.k] ? 'hot' : '') + '"><span class="tag">' + esc(m.k) + '</span><span>' + esc(L(m.t)) + '</span><span class="sc">' + t('scUncertainty', { u: m.u }) + ' · ' + t('scLethality', { l: m.l }) + '</span></li>';
     }).join('');
     var h = PC.hot(b);
     $('focusline').innerHTML = h.length
-      ? '<b>本季度验证焦点</b>' + h.map(function (m) { return esc(m.k) + '　' + esc(m.t); }).join('；') + '。其余前提本季不讨论，先当它成立。'
-      : '<b>本季度验证焦点</b>没有条件落在右上象限。要么这个赌注已经足够确定，要么打分打得太保守，重打一次。';
+      ? '<b>' + t('focusLabel') + '</b>' + h.map(function (m) { return esc(m.k) + '　' + esc(L(m.t)); }).join('；') + t('focusSuffix')
+      : '<b>' + t('focusLabel') + '</b>' + t('focusNone');
   }
 
   /* ---------------- 资源投向 ---------------- */
   function renderAlloc() {
-    $('alloclede').textContent = alloc.quarter + ' 实际人天占比，对照嘴上说的配比。深色竖线是声称值。';
+    $('alloclede').textContent = L(alloc.quarter) + ' — ' + t('allocLede');
     $('alloc').innerHTML = alloc.rows.map(function (a) {
       var gap = a.actual - a.stated, off = Math.abs(gap) >= 10;
       return '<li class="' + (off ? 'off' : '') + '">' +
-        '<div class="arow"><span>' + PC.ALLOC_NAME[a.k] + '</span>' +
-          '<span class="num">实际 ' + a.actual + '% · 声称 ' + a.stated + '%</span>' +
+        '<div class="arow"><span>' + t(PC.ALLOC_NAME[a.k]) + '</span>' +
+          '<span class="num">' + t('actual') + ' ' + a.actual + '% · ' + t('stated') + ' ' + a.stated + '%</span>' +
           '<span class="gap">' + (gap > 0 ? '+' : '') + gap + '</span></div>' +
         '<div class="track"><div class="fill" style="width:' + a.actual + '%"></div><div class="mark2" style="left:' + a.stated + '%"></div></div>' +
       '</li>';
@@ -158,33 +170,35 @@
     if (!b) return;
     var a = PC.audit(b), hotSet = {};
     PC.hot(b).forEach(function (m) { hotSet[m.k] = true; });
-    $('d-code').textContent = b.id + ' · ' + PC.ENG[b.engine] + ' · ' + (b.irreversible ? '不可逆决策' : '可逆决策') + ' · ' + b.owner;
-    $('d-claim').textContent = b.claim;
+    $('d-code').textContent = b.id + ' · ' + t(PC.ENG_KEY[b.engine]) + ' · ' + (b.irreversible ? t('irrDecision') : t('revDecision')) + ' · ' + L(b.owner);
+    $('d-claim').textContent = L(b.claim);
     var fails = a.filter(function (c) { return !c.ok; });
+    var basisIsOpinion = b.basis.length === 0 || L(b.basis[0]) === '管理层共识';
     $('d-body').innerHTML =
-      (fails.length ? '<div class="shortbox"><b>体检未通过 ' + fails.length + ' 项</b>' + fails.map(function (c) { return '<p style="margin-bottom:4px">' + esc(c.why) + '</p>'; }).join('') + '</div>' : '') +
-      '<div class="f"><b>凭什么</b>' + (b.basis.length && b.basis[0] !== '管理层共识' ? '<ul>' + b.basis.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '<p style="color:var(--alert)">只有“' + esc(b.basis[0] || '无') + '”。这不是已发生的事实。</p>') + '</div>' +
-      '<div class="f kill"><b>什么会证明我们错</b><p>' + (b.kill.t ? esc(b.kill.t) + '　停损日 ' + esc(b.kill.d) : '<span style="color:var(--alert)">未填。立赌注时不写死停损，半年后就没人愿意承认它错了。</span>') + '</p></div>' +
-      '<div class="f sacr"><b>为此放弃什么</b><p>' + (b.sacrifice ? esc(b.sacrifice) : '<span style="color:var(--alert)">未填。写不出放弃什么，说明资源根本没动。</span>') + '</p></div>' +
-      '<div class="f probe"><b>30 天真实动作</b><p>' + (b.probe.a ? esc(b.probe.a) + '　截止 ' + esc(b.probe.d) + (PC.days(b.probe.d) < 0 ? '（已逾期 ' + (-PC.days(b.probe.d)) + ' 天）' : '') : '<span style="color:var(--alert)">未填。不能在 30 天内变成一次对外动作的判断，多半还没想清楚。</span>') + '</p></div>' +
-      '<div class="f"><b>必须为真</b><ul class="mbt">' + b.mbt.map(function (m) { return '<li class="' + (hotSet[m.k] ? 'hot' : '') + '"><span style="font-family:var(--font-data);font-weight:700;width:14px;flex:none">' + esc(m.k) + '</span><span>' + esc(m.t) + '</span><span class="sc">' + m.u + ' · ' + m.l + '</span></li>'; }).join('') + '</ul></div>' +
-      '<div class="shortbox"><b>空头意见　' + esc(b.short.by || '未指定') + ' · ' + esc(b.short.q || '') + '</b>' +
-        (b.short.arg ? '<p>' + esc(b.short.arg) + '</p>' : '<p style="color:var(--muted)">本季未指定空头。没有对手的赌注不该进复盘。</p>') +
-        (b.short.sigs || []).map(function (s) { return '<div class="sig"><time>' + esc(s.d) + '</time><span>' + esc(s.t) + '<span style="color:var(--muted)">　' + esc(s.by) + '</span></span></div>'; }).join('') +
+      (fails.length ? '<div class="shortbox"><b>' + t('drawerFails', { n: fails.length }) + '</b>' + fails.map(function (c) { return '<p style="margin-bottom:4px">' + esc(c.why) + '</p>'; }).join('') + '</div>' : '') +
+      '<div class="f"><b>' + t('fBasis') + '</b>' + (!basisIsOpinion ? '<ul>' + b.basis.map(function (x) { return '<li>' + esc(L(x)) + '</li>'; }).join('') + '</ul>' : '<p style="color:var(--alert)">' + esc(t('eBasisOpinion', { t: L(b.basis[0] || '') })) + '</p>') + '</div>' +
+      '<div class="f kill"><b>' + t('fKill') + '</b><p>' + (L(b.kill.t) ? esc(L(b.kill.t)) + '　' + t('killDeadline') + ' ' + esc(b.kill.d) : '<span style="color:var(--alert)">' + esc(t('eKillEmpty')) + '</span>') + '</p></div>' +
+      '<div class="f sacr"><b>' + t('fSacrifice') + '</b><p>' + (L(b.sacrifice) ? esc(L(b.sacrifice)) : '<span style="color:var(--alert)">' + esc(t('eSacrificeEmpty')) + '</span>') + '</p></div>' +
+      '<div class="f probe"><b>' + t('fProbe') + '</b><p>' + (L(b.probe.a) ? esc(L(b.probe.a)) + '　' + t('probeDeadline') + ' ' + esc(b.probe.d) + (PC.days(b.probe.d) < 0 ? esc(t('overdueDays', { n: -PC.days(b.probe.d) })) : '') : '<span style="color:var(--alert)">' + esc(t('eProbeEmpty2')) + '</span>') + '</p></div>' +
+      '<div class="f"><b>' + t('fMbt') + '</b><ul class="mbt">' + b.mbt.map(function (m) { return '<li class="' + (hotSet[m.k] ? 'hot' : '') + '"><span style="font-family:var(--font-data);font-weight:700;width:14px;flex:none">' + esc(m.k) + '</span><span>' + esc(L(m.t)) + '</span><span class="sc">' + m.u + ' · ' + m.l + '</span></li>'; }).join('') + '</ul></div>' +
+      '<div class="shortbox"><b>' + t('fShort') + '　' + esc(L(b.short.by) || '—') + ' · ' + esc(L(b.short.q) || '') + '</b>' +
+        (L(b.short.arg) ? '<p>' + esc(L(b.short.arg)) + '</p>' : '<p style="color:var(--muted)">' + esc(t('noShort')) + '</p>') +
+        (b.short.sigs || []).map(function (s) { return '<div class="sig"><time>' + esc(s.d) + '</time><span>' + esc(L(s.t)) + '<span style="color:var(--muted)">　' + esc(L(s.by)) + '</span></span></div>'; }).join('') +
       '</div>' +
-      '<div class="f"><b>判据</b><p><span class="kind ' + b.crit.kind + '">' + (b.crit.kind === 'leading' ? '先行' : '滞后') + '</span> ' + esc(b.crit.m) + '　当前 ' + esc(b.crit.now) + esc(b.crit.u) + '，阈值 ' + esc(b.crit.thr) + esc(b.crit.u) + '<br><span style="color:var(--muted);font-size:11.5px">取值来源 ' + esc(b.crit.src) + '</span></p></div>' +
-      '<div class="f"><b>复盘</b>' + (b.rv.length ? '<ul class="tl">' + b.rv.map(function (r) {
-        var t = { keep: '维持', pivot: '转向', kill: '终止' }[r.v] || r.v;
-        return '<li><span class="stampv ' + esc(r.v) + '">' + esc(t) + '</span><time>' + esc(r.d) + '</time><span style="color:var(--muted);font-size:11.5px">　' + esc(r.by) + '</span><p>' + esc(r.t) + '</p></li>';
-      }).join('') + '</ul>' : '<p style="color:var(--muted)">还没有被正式复盘过。</p>') + '</div>';
+      '<div class="f"><b>' + t('fCrit') + '</b><p><span class="kind ' + b.crit.kind + '">' + (b.crit.kind === 'leading' ? t('leading') : t('lagging')) + '</span> ' + esc(L(b.crit.m)) + '　' + t('current') + ' ' + esc(b.crit.now) + esc(L(b.crit.u)) + '，' + t('threshold') + ' ' + esc(b.crit.thr) + esc(L(b.crit.u)) + '<br><span style="color:var(--muted);font-size:11.5px">' + t('valueFrom') + ' ' + esc(L(b.crit.src)) + '</span></p></div>' +
+      '<div class="f"><b>' + t('fReview') + '</b>' + (b.rv.length ? '<ul class="tl">' + b.rv.map(function (r) {
+        var vk = { keep: t('vKeep'), pivot: t('vPivot'), kill: t('vKill') }[r.v] || r.v;
+        return '<li><span class="stampv ' + esc(r.v) + '">' + esc(vk) + '</span><time>' + esc(r.d) + '</time><span style="color:var(--muted);font-size:11.5px">　' + esc(L(r.by)) + '</span><p>' + esc(L(r.t)) + '</p></li>';
+      }).join('') + '</ul>' : '<p style="color:var(--muted)">' + esc(t('noReview')) + '</p>') + '</div>';
     drawer.classList.add('open'); scrim.classList.add('open'); drawer.setAttribute('aria-hidden', 'false');
     $('dclose').focus();
   }
   function closeDrawer() { drawer.classList.remove('open'); scrim.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); }
 
   function renderAll() {
-    $('ns-text').textContent = northstar;
-    $('cd').textContent = 'Q3 复盘 D-' + Math.abs(PC.days('2026-09-30'));
+    $('ns-text').textContent = L(northstar);
+    $('cd').textContent = 'Q3 · D-' + Math.abs(PC.days('2026-09-30'));
+    setLangUI();
     renderStrip(); renderBets(); renderMatrix(); renderAlloc();
   }
 
