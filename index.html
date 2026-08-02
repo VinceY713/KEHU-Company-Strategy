@@ -13,7 +13,7 @@
   <span class="mark">PlayCARD</span>
   <span class="sub">客湖战略赌注台</span>
   <span class="sp"></span>
-  <button class="btn ghost onlydesktop" id="add-bet">+ 录入赌注</button>
+  <button class="btn ghost onlydesktop" id="add-bet"></button>
   <button class="btn langbtn" id="lang-btn" aria-label="Switch language">EN</button>
   <span class="cd" id="cd"></span>
 </header>
@@ -57,9 +57,10 @@
 <p class="foot">点击赌注卡切换必须为真矩阵，点“展开”看完整赌注与空头意见。桌面端可录入与编辑赌注，保存受体检硬拦截；移动端只读。数据仅存本机浏览器。<button class="reset onlydesktop" id="reset-seed">重置为种子数据</button></p>
 
 <div class="scrim" id="scrim"></div>
+<div class="toast" id="toast" hidden></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
   <div class="dhead">
-    <button class="dclose" id="dclose" aria-label="关闭">×</button>
+    <button class="dclose" id="dclose" aria-label="关闭"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <span class="code" id="d-code"></span>
     <h2 id="d-claim"></h2>
   </div>
@@ -71,7 +72,7 @@
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="me-title">
     <div class="modal-head">
       <h2 id="me-title">录入赌注</h2>
-      <button class="dclose" id="me-close" aria-label="关闭">×</button>
+      <button class="dclose" id="me-close" aria-label="关闭"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="modal-body" id="me-body"></div>
   </div>

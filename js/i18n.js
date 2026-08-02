@@ -97,6 +97,8 @@
       aiTranslate: 'AI 一键翻译', aiTranslating: 'AI 翻译中…', aiDone: '已生成{dst}版，保存后生效，切换语言可查看', aiFail: '翻译失败：{msg}',
       aiEnrich: 'AI 优化补充', aiEnriching: 'AI 优化中…', aiEnrichDone: 'AI 已按战略规范补全并填入表单，请核对后保存', aiEnrichFail: 'AI 优化失败：{msg}',
       aiEnrichNote: '可以只填“我们赌什么”一句，点 AI 优化补充自动生成完整赌注',
+      autoTranslating: '保存并自动翻译中…', savedBilingual: '已保存（中英双语）',
+      savedTransFail: '已保存；自动翻译未完成（{msg}），可稍后编辑手动翻译',
       edClaimEmpty: '我们赌什么不能为空。判断不了真假的不是赌注。',
       edBasisEmpty: '凭什么至少一条已发生的事实。不接受“我认为”。',
       edMbtCount: '必须为真需要 3–5 条前提，当前 {n} 条。',
@@ -193,8 +195,10 @@
       sigD: 'Date', sigText: 'Signal', sigBy: 'By', sigDel: 'Delete signal', sigAdd: '+ Add signal',
       save: 'Save (hard-gated)', cancel: 'Cancel', saveNote: 'Sacrifice, kill condition, 30-day probe and leading metric are mandatory',
       aiTranslate: 'AI Translate', aiTranslating: 'Translating…', aiDone: '{dst} version generated — save to apply, then switch language to view', aiFail: 'Translation failed: {msg}',
-      aiEnrich: '✨ AI Polish', aiEnriching: 'Polishing…', aiEnrichDone: 'AI filled the bet to spec — review before saving', aiEnrichFail: 'AI polish failed: {msg}',
+      aiEnrich: 'AI Polish', aiEnriching: 'Polishing…', aiEnrichDone: 'AI filled the bet to spec — review before saving', aiEnrichFail: 'AI polish failed: {msg}',
       aiEnrichNote: 'Type just the claim (one line is enough) and hit AI Polish to generate the full bet',
+      autoTranslating: 'Saving & auto-translating…', savedBilingual: 'Saved (bilingual)',
+      savedTransFail: 'Saved; auto-translation incomplete ({msg}) — retry via edit',
       edClaimEmpty: 'The claim cannot be empty. A bet must be provable true or false.',
       edBasisEmpty: 'Basis needs at least one established fact. “I believe” is not accepted.',
       edMbtCount: 'Must-be-true needs 3–5 premises, currently {n}.',
@@ -263,5 +267,19 @@
     return obj;
   }
 
-  global.PlayI18N = { t: t, setLang: setLang, getLang: getLang, isEn: isEn, norm: norm, L: L, Lval: Lval, LOther: LOther, migrate: migrate };
+  /* ---------------- 苹果风图标（SF Symbols 风格：线性、圆角、细描边） ---------------- */
+  var ICONS = {
+    translate: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+    sparkles: '<path d="M12 3l2.1 5.4L19.5 10.5l-5.4 2.1L12 18l-2.1-5.4L4.5 10.5l5.4-2.1z"/><path d="M19 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/><path d="M5 4.5l.7 1.8 1.8.7-1.8.7L5 9.5l-.7-1.8-1.8-.7 1.8-.7z"/>',
+    lightbulb: '<path d="M9 18h6"/><path d="M10 21.5h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.8.6 1.4 1.3 1.5 2.1h4c.1-.8.7-1.5 1.5-2.1A6 6 0 0 0 12 3z"/>',
+    xmark: '<path d="M6 6l12 12M18 6 6 18"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    pencil: '<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>'
+  };
+  function icon(name, size) {
+    size = size || 14;
+    return '<svg class="ic" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+  }
+
+  global.PlayI18N = { t: t, setLang: setLang, getLang: getLang, isEn: isEn, norm: norm, L: L, Lval: Lval, LOther: LOther, migrate: migrate, icon: icon };
 })(window);

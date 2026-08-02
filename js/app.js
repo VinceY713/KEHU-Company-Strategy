@@ -198,6 +198,7 @@
   function renderAll() {
     $('ns-text').textContent = L(northstar);
     $('cd').textContent = 'Q3 · D-' + Math.abs(PC.days('2026-09-30'));
+    $('add-bet').innerHTML = I18N.icon('plus', 13) + ' ' + t('addBet');
     setLangUI();
     renderStrip(); renderBets(); renderMatrix(); renderAlloc();
   }

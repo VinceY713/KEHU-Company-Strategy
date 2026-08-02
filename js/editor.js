@@ -9,7 +9,7 @@
 'use strict';
 (function () {
   var PC = window.PlayCARD, PS = window.PlayState, I18N = window.PlayI18N;
-  var t = I18N.t, Lval = I18N.Lval, norm = I18N.norm, getLang = I18N.getLang;
+  var t = I18N.t, Lval = I18N.Lval, norm = I18N.norm, getLang = I18N.getLang, icon = I18N.icon;
   var $ = function (id) { return document.getElementById(id); };
   var modal = $('modal'), body = $('me-body'), title = $('me-title');
   var esc = PC.esc;
@@ -43,7 +43,7 @@
       '<input class="inp" data-fn="mbt" value="' + esc(Lval(m.t)) + '" placeholder="' + t('mbTPh') + '" aria-label="' + t('mbT') + '">' +
       '<input class="inp nu" type="number" min="1" max="5" data-fn="mbu" value="' + (m.u || '') + '" placeholder="' + t('mbU') + '" aria-label="' + t('mbU') + '">' +
       '<input class="inp nu" type="number" min="1" max="5" data-fn="mbl" value="' + (m.l || '') + '" placeholder="' + t('mbL') + '" aria-label="' + t('mbL') + '">' +
-      '<button type="button" class="rowdel" aria-label="' + t('mbDel') + '">×</button></div>';
+      '<button type="button" class="rowdel" aria-label="' + t('mbDel') + '">' + icon('xmark', 13) + '</button></div>';
   }
   function sigRow(s) {
     s = s || {};
@@ -51,7 +51,7 @@
       '<input class="inp" type="date" data-fn="sigd" value="' + esc(s.d || '') + '" aria-label="' + t('sigD') + '">' +
       '<input class="inp" data-fn="sigtext" value="' + esc(Lval(s.t)) + '" placeholder="' + t('sigText') + '" aria-label="' + t('sigText') + '">' +
       '<input class="inp sm" data-fn="sigby" value="' + esc(Lval(s.by)) + '" placeholder="' + t('sigBy') + '" aria-label="' + t('sigBy') + '">' +
-      '<button type="button" class="rowdel" aria-label="' + t('sigDel') + '">×</button></div>';
+      '<button type="button" class="rowdel" aria-label="' + t('sigDel') + '">' + icon('xmark', 13) + '</button></div>';
   }
 
   function newDraft() {
@@ -75,7 +75,7 @@
     body.innerHTML =
       '<div class="editorfails" id="efails" hidden><b>' + t('edRejected') + '</b><div id="efailslist"></div></div>' +
       '<div class="editorok" id="eok" hidden></div>' +
-      '<div class="hintbar">💡 ' + t('aiEnrichNote') + '</div>' +
+      '<div class="hintbar">' + icon('lightbulb', 13) + ' ' + t('aiEnrichNote') + '</div>' +
       '<form id="betform" novalidate>' +
       '<fieldset class="fieldset"><legend>' + t('fsIdentity') + '</legend>' +
         '<div class="grid2">' +
@@ -117,7 +117,7 @@
       '</fieldset>' +
       '<fieldset class="fieldset"><legend>' + t('fsMbt') + '（' + t('fMbtHint') + '）</legend>' +
         '<div id="mbtrows">' + d.mbt.map(mbtRow).join('') + '</div>' +
-        '<button type="button" class="addrow" id="add-mbt">' + t('mbAdd') + '</button>' +
+        '<button type="button" class="addrow" id="add-mbt">' + icon('plus', 12) + ' ' + t('mbAdd') + '</button>' +
       '</fieldset>' +
       '<fieldset class="fieldset"><legend>' + t('fsShort') + '</legend>' +
         '<div class="grid2">' +
@@ -126,12 +126,12 @@
         '</div>' +
         '<div class="field"><label class="lbl">' + t('fShortArg') + '</label><textarea class="inp" data-fn="shortarg" rows="2">' + esc(fshow(d.short, 'arg')) + '</textarea></div>' +
         '<div class="field"><label class="lbl">' + t('fSigT') + '</label><div id="sigrows">' + (d.short.sigs || []).map(sigRow).join('') + '</div>' +
-        '<button type="button" class="addrow" id="add-sig">' + t('sigAdd') + '</button></div>' +
+        '<button type="button" class="addrow" id="add-sig">' + icon('plus', 12) + ' ' + t('sigAdd') + '</button></div>' +
       '</fieldset>' +
       '<div class="formfoot">' +
         '<button type="submit" class="btn primary">' + t('save') + '</button>' +
-        '<button type="button" class="btn ghost purple" id="ai-enrich">✨ ' + t('aiEnrich') + '</button>' +
-        '<button type="button" class="btn ghost purple" id="ai-translate">⚡ ' + t('aiTranslate') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="ai-enrich">' + icon('sparkles') + ' ' + t('aiEnrich') + '</button>' +
+        '<button type="button" class="btn ghost purple" id="ai-translate">' + icon('translate') + ' ' + t('aiTranslate') + '</button>' +
         '<button type="button" class="btn ghost purple" id="me-cancel">' + t('cancel') + '</button>' +
         '<span class="note">' + t('saveNote') + '</span>' +
       '</div>' +
@@ -239,7 +239,7 @@
       showNote(t('aiDone', { dst: dstLang === 'en' ? 'English' : '中文' }), 'ok');
     })
     .catch(function (e) { showNote(t('aiFail', { msg: e.message }), 'err'); })
-    .finally(function () { btn.disabled = false; btn.textContent = '⚡ ' + t('aiTranslate'); });
+    .finally(function () { btn.disabled = false; btn.innerHTML = icon('translate') + ' ' + t('aiTranslate'); });
   }
 
   /* 把翻译结果写入 draft 的目标语言槽位 */
@@ -311,7 +311,7 @@
     if (!payload.claim && !payload.basis.length) {
       showNote(t('aiEnrichFail', { msg: 'empty' }), 'err'); return;
     }
-    btn.disabled = true; btn.textContent = '✨ ' + t('aiEnriching');
+    btn.disabled = true; btn.innerHTML = icon('sparkles') + ' ' + t('aiEnriching');
     fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -332,7 +332,33 @@
       showNote(t('aiEnrichDone'), 'ok');
     })
     .catch(function (e) { showNote(t('aiEnrichFail', { msg: e.message }), 'err'); })
-    .finally(function () { btn.disabled = false; btn.textContent = '✨ ' + t('aiEnrich'); });
+    .finally(function () { btn.disabled = false; btn.innerHTML = icon('sparkles') + ' ' + t('aiEnrich'); });
+  }
+
+  /* draft 当前语言 → 翻译 payload */
+  function draftI18n(d) {
+    return {
+      claim: Lval(d.claim),
+      basis: d.basis.map(Lval),
+      kill_t: Lval(d.kill.t),
+      sacrifice: Lval(d.sacrifice),
+      probe_a: Lval(d.probe.a),
+      crit_m: Lval(d.crit.m), crit_u: Lval(d.crit.u), crit_src: Lval(d.crit.src),
+      owner: Lval(d.owner),
+      mbt: d.mbt.map(function (m) { return { t: Lval(m.t) }; }),
+      sigs: d.short.sigs.map(function (s2) { return { t: Lval(s2.t), by: Lval(s2.by) }; }),
+      short_by: Lval(d.short.by), short_q: Lval(d.short.q), short_arg: Lval(d.short.arg)
+    };
+  }
+
+  /* 全局轻提示（保存成功/翻译失败） */
+  function toast(msg, kind) {
+    var el = $('toast');
+    el.textContent = msg;
+    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    el.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.hidden = true; }, 3400);
   }
 
   /* ---------------- 保存（体检硬拦截） ---------------- */
@@ -372,12 +398,6 @@
     });
     fset(d.short, 'by', q('shortby')); fset(d.short, 'q', q('shortq')); fset(d.short, 'arg', q('shortarg'));
 
-    /* 合并 AI 翻译结果（若存在） */
-    if (pendingDst) {
-      var dl = getLang() === 'zh' ? 'en' : 'zh';
-      writeTranslated(d, pendingDst, dl);
-    }
-
     /* 基础校验 */
     clearFlags();
     var anyL = function (v) { v = norm(v); return !!(v.zh || v.en); };
@@ -406,13 +426,48 @@
       return;
     }
 
-    if (origId) {
-      /* 编辑：移除原编号（id 可能被改），写入新对象 */
-      PS.bets = PS.bets.filter(function (x) { return x.id !== origId; }).concat([d]);
-    } else {
-      PS.bets.push(d);
+    var dl = getLang() === 'zh' ? 'en' : 'zh';
+    var saveBtn = body.querySelector('#betform button[type=submit]');
+
+    function doSave(transFailMsg) {
+      if (origId) {
+        /* 编辑：移除原编号（id 可能被改），写入新对象 */
+        PS.bets = PS.bets.filter(function (x) { return x.id !== origId; }).concat([d]);
+      } else {
+        PS.bets.push(d);
+      }
+      PS.save(); PS.refresh(); close();
+      toast(transFailMsg ? t('savedTransFail', { msg: transFailMsg }) : t('savedBilingual'), transFailMsg ? 'err' : 'ok');
     }
-    PS.save(); PS.refresh(); close();
+
+    /* 保存时自动翻译另一语言：录中文自动出英文，录英文自动出中文 */
+    if (pendingDst) {
+      /* 手动 AI 翻译结果优先 */
+      writeTranslated(d, pendingDst, dl);
+      doSave();
+      return;
+    }
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = icon('translate') + ' ' + t('autoTranslating');
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: buildTranslatePrompt(getLang(), draftI18n(d)) }],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 3000
+      })
+    })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (data) {
+      var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) throw new Error('empty');
+      writeTranslated(d, JSON.parse(cleanJson(content)), dl);
+      doSave();
+    })
+    .catch(function (e) { doSave(e.message); });
   }
 
   /* ================= 资源投向配比 ================= */
