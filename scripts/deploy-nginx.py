@@ -26,7 +26,7 @@ else:
     open(P, 'w').write(s2)
     print('playcard location inserted (backup: %s.bak.playcard)' % P)
 
-r = subprocess.run(['sudo', 'nginx', '-t'], capture_output=True, text=True)
+r = subprocess.run(['sudo', 'nginx', '-t'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 print('nginx -t:', (r.stdout + r.stderr).strip().replace('\n', ' | '))
 if r.returncode != 0:
     sys.exit(1)
