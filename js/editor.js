@@ -372,29 +372,31 @@
     d.irreversible = body.querySelector('[data-fn="irreversible"]').checked;
     fset(d, 'owner', q('owner'));
     fset(d, 'claim', q('claim'));
-    d.basis = q('basis').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).map(function (x) { return setL(bi(), x, getLang()); });
+    d.basis = q('basis').split('\n').map(function (s) { return s.trim(); }).filter(Boolean).map(function (x, i) { return setL(d.basis[i] || bi(), x, getLang()); });
     fset(d.kill, 't', q('killt')); d.kill.d = q('killd');
     fset(d, 'sacrifice', q('sacrifice'));
     fset(d.probe, 'a', q('probea')); d.probe.d = q('probed');
     fset(d.crit, 'm', q('critm')); d.crit.kind = q('critkind'); fset(d.crit, 'u', q('critu'));
     d.crit.now = +q('critnow') || 0; d.crit.thr = +q('critthr') || 0;
     d.crit.direction = q('critdir') || 'up'; fset(d.crit, 'src', q('critsrc'));
+    var oldMbt = d.mbt || [];
     d.mbt = [];
-    body.querySelectorAll('.mbtrow').forEach(function (r) {
+    body.querySelectorAll('.mbtrow').forEach(function (r, mi) {
       var tt = r.querySelector('[data-fn="mbt"]').value.trim();
       if (!tt) return;
       d.mbt.push({
         k: (r.querySelector('[data-fn="mbk"]').value.trim() || 'x'),
-        t: setL(bi(), tt, getLang()),
+        t: setL((oldMbt[mi] || {}).t || bi(), tt, getLang()),
         u: Math.min(5, Math.max(1, +r.querySelector('[data-fn="mbu"]').value || 1)),
         l: Math.min(5, Math.max(1, +r.querySelector('[data-fn="mbl"]').value || 1))
       });
     });
+    var oldSigs = d.short.sigs || [];
     d.short.sigs = [];
-    body.querySelectorAll('.sigrow').forEach(function (r) {
+    body.querySelectorAll('.sigrow').forEach(function (r, si) {
       var tt = r.querySelector('[data-fn="sigtext"]').value.trim();
       if (!tt) return;
-      d.short.sigs.push({ d: r.querySelector('[data-fn="sigd"]').value, t: setL(bi(), tt, getLang()), by: setL(bi(), r.querySelector('[data-fn="sigby"]').value.trim(), getLang()) });
+      d.short.sigs.push({ d: r.querySelector('[data-fn="sigd"]').value, t: setL((oldSigs[si] || {}).t || bi(), tt, getLang()), by: setL((oldSigs[si] || {}).by || bi(), r.querySelector('[data-fn="sigby"]').value.trim(), getLang()) });
     });
     fset(d.short, 'by', q('shortby')); fset(d.short, 'q', q('shortq')); fset(d.short, 'arg', q('shortarg'));
 
@@ -427,28 +429,29 @@
     }
 
     var dl = getLang() === 'zh' ? 'en' : 'zh';
-    var saveBtn = body.querySelector('#betform button[type=submit]');
 
-    function doSave(transFailMsg) {
+    function persist() {
       if (origId) {
-        /* 编辑：移除原编号（id 可能被改），写入新对象 */
-        PS.bets = PS.bets.filter(function (x) { return x.id !== origId; }).concat([d]);
+        /* 编辑：原位替换（PlayState.bets 是 getter，须用 setBets） */
+        PS.setBets(PS.bets.map(function (x) { return x.id === origId ? d : x; }));
       } else {
         PS.bets.push(d);
       }
-      PS.save(); PS.refresh(); close();
-      toast(transFailMsg ? t('savedTransFail', { msg: transFailMsg }) : t('savedBilingual'), transFailMsg ? 'err' : 'ok');
+      PS.save();
     }
 
-    /* 保存时自动翻译另一语言：录中文自动出英文，录英文自动出中文 */
+    /* 1) 立即保存当前语言（同步落盘，刷新也不丢） */
     if (pendingDst) {
-      /* 手动 AI 翻译结果优先 */
+      /* 手动 AI 翻译结果一并合并进另一语言 */
       writeTranslated(d, pendingDst, dl);
-      doSave();
+      persist(); PS.refresh(); close();
+      toast(t('savedBilingual'), 'ok');
       return;
     }
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = icon('translate') + ' ' + t('autoTranslating');
+    persist(); PS.refresh(); close();
+    toast(t('savedOk'), 'ok');
+
+    /* 2) 后台异步生成另一语言：失败不影响已保存数据 */
     fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -465,9 +468,12 @@
       var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       if (!content) throw new Error('empty');
       writeTranslated(d, JSON.parse(cleanJson(content)), dl);
-      doSave();
+      persist(); PS.refresh();
+      toast(t('translatedDone', { dst: dl === 'en' ? 'English' : '中文' }), 'ok');
     })
-    .catch(function (e) { doSave(e.message); });
+    .catch(function () {
+      /* 已保存；另一语言留空，英文界面会显示 translation pending，可编辑后手动翻译 */
+    });
   }
 
   /* ================= 资源投向配比 ================= */

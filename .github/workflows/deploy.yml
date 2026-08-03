@@ -49,8 +49,15 @@ jobs:
             sudo mkdir -p /var/www/playcard &&
             sudo rsync -a --delete /tmp/playcard-deploy/ /var/www/playcard/ &&
             sudo chown -R root:root /var/www/playcard/ &&
-            sudo python3 /tmp/playcard-deploy/scripts/deploy-nginx.py &&
             echo "INSTALL_DONE"'
+
+      - name: Configure translate proxy and nginx
+        env:
+          DS_KEY: ${{ secrets.DEEPSEEK_API }}
+        run: |
+          printf 'proxy_set_header Authorization "Bearer %s";\n' "$DS_KEY" | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22} $USER_OK@$HOST "sudo tee /etc/nginx/ai_key.conf > /dev/null"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22} $USER_OK@$HOST "sudo python3 /tmp/playcard-deploy/scripts/deploy-nginx.py"
+          echo "NGINX_CONF_DONE"
 
       - name: Verify online
         run: |
