@@ -22,45 +22,39 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- key lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
-          echo "-- key type: $(grep -o 'BEGIN [A-Za-z ]*PRIVATE KEY' ~/.ssh/deploy_key | head -1 || echo unknown)"
-          echo "-- head bytes: $(head -c 24 ~/.ssh/deploy_key | od -An -tx1 | tr -d ' \n')"
           perl -pi -e 's/^\x{EF}\x{BB}\x{BF}//' ~/.ssh/deploy_key
           awk '/BEGIN/{f=1} f{print} f&&/END/{f=0}' ~/.ssh/deploy_key > ~/.ssh/deploy_key.clean
           mv ~/.ssh/deploy_key.clean ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- after clean lines: $(wc -l < ~/.ssh/deploy_key)"
-          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 && echo "-- ssh-keygen OK" || echo "-- ssh-keygen still fails"
-          echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
+          echo "HOST=$HOST PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Find working SSH user
         run: |
           SSHCMD="ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -p ${PORT:-22}"
           FOUND=""
           if $SSHCMD $USER@$HOST 'true' 2>/dev/null; then
-            FOUND="$USER"
-            echo "-- secret user works: $USER"
+            FOUND="$USER"; echo "-- secret user works: $USER"
           else
-            echo "-- secret user '$USER' rejected, trying common users"
             for u in root ubuntu lighthouse admin ecs-user centos; do
-              if $SSHCMD $u@$HOST 'true' 2>/dev/null; then
-                FOUND="$u"
-                echo "-- user works: $u"
-                break
-              fi
+              if $SSHCMD $u@$HOST 'true' 2>/dev/null; then FOUND="$u"; echo "-- user works: $u"; break; fi
             done
           fi
-          if [ -n "$FOUND" ]; then
-            echo "USER_OK=$FOUND" >> $GITHUB_ENV
-          else
-            echo "::error::No SSH user accepted this key on $HOST — key likely not registered on the server"
-            exit 1
-          fi
+          if [ -n "$FOUND" ]; then echo "USER_OK=$FOUND" >> $GITHUB_ENV; else echo "::error::No SSH user accepted this key on $HOST"; exit 1; fi
 
-      - name: Probe server environment
+      - name: Upload and install to /var/www/playcard
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER_OK@$HOST 'echo "== USER: $(whoami) @ $(hostname) =="; grep PRETTY /etc/os-release; echo "== nginx =="; command -v nginx && sudo systemctl is-active nginx 2>/dev/null; echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null; echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null; echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5; echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null; echo "== web dirs =="; ls -d /var/www/* 2>/dev/null; echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3; echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO; echo "== home =="; ls ~ 2>/dev/null | head -8'
+          rsync -avz --delete --exclude '.git' --exclude '.github' --exclude '.workbuddy' --exclude '.claude' --exclude 'KCS.pem' -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22}" ./ $USER_OK@$HOST:/tmp/playcard-deploy/ 2>&1 | tail -4
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22} $USER_OK@$HOST '
+            sudo mkdir -p /var/www/playcard &&
+            sudo rsync -a --delete /tmp/playcard-deploy/ /var/www/playcard/ &&
+            sudo chown -R root:root /var/www/playcard/ &&
+            sudo python3 /tmp/playcard-deploy/scripts/deploy-nginx.py &&
+            echo "INSTALL_DONE"'
 
-      - name: Read nginx kehu.conf structure
+      - name: Verify online
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER_OK@$HOST 'echo "== server blocks =="; sudo grep -nE "server \{|listen |server_name |root |location /|include " /etc/nginx/conf.d/kehu.conf | head -40; echo "== tail =="; sudo tail -5 /etc/nginx/conf.d/kehu.conf; echo "== html dirs =="; ls -d /var/www/html /usr/share/nginx/html 2>/dev/null; echo "== xiaohu DNS =="; grep -q "xiaohu" /etc/nginx/conf.d/kehu.conf && echo "xiaohu exists" || echo "xiaohu missing"'
+          sleep 2
+          for url in "http://xiaohu.kehutech.com/playcard/" "http://${HOST}/playcard/"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 "$url" || echo 000)
+            echo "GET $url -> $code"
+          done
