@@ -22,15 +22,9 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- key lines: $(wc -l < ~/.ssh/deploy_key)"
-          openssl pkey -in ~/.ssh/deploy_key -traditional -out ~/.ssh/deploy_key.pem 2>/tmp/ossl.err
-          if [ -s ~/.ssh/deploy_key.pem ]; then
-            mv ~/.ssh/deploy_key.pem ~/.ssh/deploy_key
-            echo "-- key converted to PEM OK"
-          else
-            echo "-- openssl convert failed: $(tail -1 /tmp/ossl.err)"
-          fi
-          chmod 600 ~/.ssh/deploy_key
+          echo "-- key lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
+          echo "-- key type: $(grep -o 'BEGIN [A-Za-z ]*PRIVATE KEY' ~/.ssh/deploy_key | head -1 || echo unknown)"
+          openssl pkey -in ~/.ssh/deploy_key -noout 2>&1 | tail -1 || true
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
