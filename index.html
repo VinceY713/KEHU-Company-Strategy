@@ -11,7 +11,7 @@
 
 <header class="topbar">
   <span class="mark">PlayCARD</span>
-  <span class="sub">客湖战略赌注台</span>
+  <span class="sub" id="brand-sub">客湖战略赌注台</span>
   <span class="sp"></span>
   <button class="btn ghost onlydesktop" id="add-bet"></button>
   <button class="btn ghost" id="help-btn"></button>
@@ -20,21 +20,21 @@
 </header>
 
 <div class="northstar">
-  <b>三年方向</b>
+  <b id="ns-label">三年方向</b>
   <span id="ns-text">这一层不设指标。所有数字只存在于 90 天内。</span>
   <button class="ns-edit onlydesktop" id="ns-edit" aria-label="编辑三年方向">改</button>
-  <small>这一层不设指标。所有数字只存在于 90 天内。</small>
+  <small id="ns-hint">这一层不设指标。所有数字只存在于 90 天内。</small>
 </div>
 
 <div class="strip" id="strip"></div>
 
 <main>
-  <div class="secttl"><h2>赌注</h2><p>不是目标。目标只说要做到什么，赌注还要说凭什么、什么算错、为此放弃什么。</p></div>
+  <div class="secttl"><h2 id="bet-title">赌注</h2><p id="bet-subtitle">不是目标。目标只说要做到什么，赌注还要说凭什么、什么算错、为此放弃什么。</p></div>
   <div class="bets" id="bets"></div>
 
   <div class="panels">
     <section class="panel">
-      <h3>必须为真</h3>
+      <h3 id="mbt-title">必须为真</h3>
       <p class="lede" id="mxlede"></p>
       <svg class="mx" id="mx" viewBox="0 0 470 320" role="img" aria-label="必须为真条件按不确定性与致命性分布"></svg>
       <ul class="mxlegend" id="mxlegend"></ul>
@@ -44,18 +44,18 @@
     <section class="panel">
       <div class="phead">
         <div>
-          <h3>资源投向</h3>
+          <h3 id="alloc-title">资源投向</h3>
           <p class="lede" id="alloclede">上季度实际人天占比，对照嘴上说的配比。深色竖线是声称值。</p>
         </div>
         <button class="btn ghost purple onlydesktop" id="edit-alloc">编辑配比</button>
       </div>
       <ul class="alloc" id="alloc"></ul>
-      <p class="verdictline">看日历和看工资单，是检验战略是否存在的唯一硬指标。<b>如果连续两个季度实际投向不动，战略就是假的。</b></p>
+      <p class="verdictline" id="verdictline">看日历和看工资单，是检验战略是否存在的唯一硬指标。<b>如果连续两个季度实际投向不动，战略就是假的。</b></p>
     </section>
   </div>
 </main>
 
-<p class="foot">点击赌注卡切换必须为真矩阵，点“展开”看完整赌注与空头意见。桌面端可录入与编辑赌注，保存受体检硬拦截；移动端只读。数据仅存本机浏览器。<button class="reset onlydesktop" id="reset-seed">重置为种子数据</button></p>
+<p class="foot"><span id="foot-text">点击赌注卡切换必须为真矩阵，点"展开"看完整赌注与空头意见。桌面端可录入与编辑赌注，保存受体检硬拦截；移动端只读。数据仅存本机浏览器。</span><button class="reset onlydesktop" id="reset-seed">重置为种子数据</button></p>
 
 <div class="scrim" id="scrim"></div>
 <div class="toast" id="toast" hidden></div>

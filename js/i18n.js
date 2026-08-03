@@ -9,6 +9,7 @@
     zh: {
       /* 顶栏 */
       brand: 'PlayCARD 客湖战略赌注台',
+      brandSub: '客湖战略赌注台',
       addBet: '+ 录入赌注',
       /* 三年方向 */
       northstarLabel: '三年方向',
@@ -133,6 +134,7 @@
 
     en: {
       brand: 'PlayCARD · KEHU Strategy Bet Board',
+      brandSub: 'KEHU Strategy Bet Board',
       addBet: '+ New Bet',
       northstarLabel: '3-YEAR DIRECTION',
       northstarHint: 'No metrics here. All numbers live only within 90 days.',
@@ -146,8 +148,8 @@
       betSubtitle: 'Not goals. A goal says what we want; a bet says why we hold it, what would prove us wrong, and what we give up.',
       irr: 'IRREV.', rev: 'REV.',
       edit: 'Edit',
-      missing: 'no ',
-      checkSacrifice: 'Sacrifice', checkKill: 'Kill cond.', checkProbe: '30-day probe', checkLeading: 'Leading',
+      missing: '✕ ',
+      checkSacrifice: 'Sacrifice', checkKill: 'Kill', checkProbe: 'Probe', checkLeading: 'Leading',
       leading: 'LEADING', lagging: 'LAGGING',
       threshold: 'threshold',
       clockProbe: '30-DAY PROBE', clockKill: 'KILL DATE',
@@ -156,7 +158,7 @@
       mbtTitle: 'MUST-BE-TRUE',
       low: 'Low', high: 'High',
       uncertainty: 'Uncertainty', lethality: 'Lethality',
-      hotZone: 'THE ONLY THING TO VERIFY THIS QUARTER',
+      hotZone: 'QUARTER FOCUS',
       scUncertainty: 'U {u}', scLethality: 'L {l}',
       focusLabel: 'QUARTERLY VERIFICATION FOCUS',
       focusSuffix: '. All other premises are assumed true this quarter.',

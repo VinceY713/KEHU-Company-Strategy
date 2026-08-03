@@ -115,6 +115,23 @@
     document.querySelectorAll('[data-edit]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); window.Editor.openBet(b.dataset.edit); }); });
   }
 
+  /* SVG 文本没有原生自动换行；按可用宽度估算断行，避免长文案顶到 viewBox 边界被裁切 */
+  function svgWrapLines(text, maxWidth, fontSize) {
+    var charW = fontSize * 0.62;
+    var maxChars = Math.max(1, Math.floor(maxWidth / charW));
+    if (text.length <= maxChars) return [text];
+    var words = text.indexOf(' ') >= 0 ? text.split(' ') : text.split('');
+    var sep = text.indexOf(' ') >= 0 ? ' ' : '';
+    var lines = [], cur = '';
+    words.forEach(function (w) {
+      var next = cur ? cur + sep + w : w;
+      if (next.length > maxChars && cur) { lines.push(cur); cur = w; }
+      else cur = next;
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
   /* ---------------- 必须为真矩阵 ---------------- */
   function renderMatrix() {
     var b = bets.filter(function (x) { return x.id === sel; })[0] || bets[0];
@@ -124,8 +141,11 @@
     var hotSet = {};
     PC.hot(b).forEach(function (m) { hotSet[m.k] = true; });
     var s = '';
-    s += '<rect x="' + X(3.5) + '" y="' + (Y(5) - 16) + '" width="' + (X(5) - X(3.5) + 30) + '" height="' + (Y(3.5) - Y(5) + 16) + '" fill="var(--kehu-gold-tint)" stroke="var(--kehu-gold)" stroke-width="1" rx="4"/>';
-    s += '<text x="' + (X(3.5) + 8) + '" y="' + (Y(5) - 4) + '" font-size="10.5" font-weight="700" fill="#3D004F" letter-spacing="0.5">' + esc(t('hotZone')) + '</text>';
+    var hbX = X(3.5), hbY = Y(5) - 16, hbW = X(5) - X(3.5) + 30, hbH = Y(3.5) - Y(5) + 16, hbFs = 10.5;
+    s += '<rect x="' + hbX + '" y="' + hbY + '" width="' + hbW + '" height="' + hbH + '" fill="var(--kehu-gold-tint)" stroke="var(--kehu-gold)" stroke-width="1" rx="4"/>';
+    s += '<text x="' + (hbX + 8) + '" y="' + (hbY + 13) + '" font-size="' + hbFs + '" font-weight="700" fill="#3D004F" letter-spacing="0.3">' +
+      svgWrapLines(t('hotZone'), hbW - 16, hbFs).map(function (line, i) { return '<tspan x="' + (hbX + 8) + '" dy="' + (i === 0 ? 0 : 13) + '">' + esc(line) + '</tspan>'; }).join('') +
+    '</text>';
     s += '<line x1="52" y1="258" x2="468" y2="258" stroke="var(--line)" stroke-width="1"/>';
     s += '<line x1="52" y1="20" x2="52" y2="258" stroke="var(--line)" stroke-width="1"/>';
     s += '<text x="52" y="284" font-size="10.5" fill="var(--muted)">' + t('low') + '</text>';
@@ -205,7 +225,22 @@
   function closeHelp() { helpModal.hidden = true; }
 
   function renderAll() {
+    document.title = t('brand');
+    document.documentElement.lang = I18N.isEn() ? 'en' : 'zh-CN';
+    $('brand-sub').textContent = t('brandSub');
+    $('ns-label').textContent = t('northstarLabel');
     $('ns-text').textContent = L(northstar);
+    $('ns-edit').textContent = t('editNorthstar');
+    $('ns-hint').textContent = t('northstarHint');
+    $('bet-title').textContent = t('betTitle');
+    $('bet-subtitle').textContent = t('betSubtitle');
+    $('mbt-title').textContent = t('mbtTitle');
+    $('alloc-title').textContent = t('allocTitle');
+    $('edit-alloc').textContent = t('editAlloc');
+    $('verdictline').innerHTML = esc(t('verdict1')) + ' <b>' + esc(t('verdict2')) + '</b>';
+    $('foot-text').textContent = t('foot');
+    $('reset-seed').textContent = t('resetSeed');
+    document.querySelectorAll('.dclose').forEach(function (el) { el.setAttribute('aria-label', t('close')); });
     $('cd').textContent = 'Q3 · D-' + Math.abs(PC.days('2026-09-30'));
     $('add-bet').innerHTML = I18N.icon('plus', 13) + ' ' + t('addBet');
     $('help-btn').innerHTML = I18N.icon('lightbulb', 13) + ' ' + t('helpBtn');
