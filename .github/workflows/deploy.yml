@@ -61,6 +61,6 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER_OK@$HOST 'echo "== USER: $(whoami) @ $(hostname) =="; grep PRETTY /etc/os-release; echo "== nginx =="; command -v nginx && sudo systemctl is-active nginx 2>/dev/null; echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null; echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null; echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5; echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null; echo "== web dirs =="; ls -d /var/www/* 2>/dev/null; echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3; echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO; echo "== home =="; ls ~ 2>/dev/null | head -8'
 
-      - name: Upload code to server temp dir
+      - name: Read nginx kehu.conf structure
         run: |
-          rsync -avz --delete --exclude '.git' --exclude '.github' --exclude '.workbuddy' --exclude '.claude' --exclude 'KCS.pem' -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22}" ./ $USER_OK@$HOST:/tmp/playcard-deploy/ 2>&1 | tail -6
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER_OK@$HOST 'echo "== server blocks =="; sudo grep -nE "server \{|listen |server_name |root |location /|include " /etc/nginx/conf.d/kehu.conf | head -40; echo "== tail =="; sudo tail -5 /etc/nginx/conf.d/kehu.conf; echo "== html dirs =="; ls -d /var/www/html /usr/share/nginx/html 2>/dev/null; echo "== xiaohu DNS =="; grep -q "xiaohu" /etc/nginx/conf.d/kehu.conf && echo "xiaohu exists" || echo "xiaohu missing"'
