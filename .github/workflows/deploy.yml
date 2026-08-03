@@ -20,11 +20,11 @@ jobs:
           USER: ${{ secrets.ECS_USER }}
         run: |
           mkdir -p ~/.ssh
-          # 处理 secret 常见的格式问题：字面 \n、Windows 回车、多余空行
-          printf '%s' "$KEY" | tr -d '\r' | sed 's/\\n/\n/g' | sed '/^$/d' > ~/.ssh/deploy_key
+          # 原样写入（保留 secret 自带换行），仅去除 CR
+          printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- key header: $(head -1 ~/.ssh/deploy_key)"
           echo "-- key lines: $(wc -l < ~/.ssh/deploy_key)"
+          openssl pkey -in ~/.ssh/deploy_key -noout 2>&1 | tail -1 || true
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
