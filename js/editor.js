@@ -246,7 +246,9 @@
   function writeTranslated(d, o, dl) {
     d.claim = setL(d.claim, o.claim || '', dl);
     d.owner = setL(d.owner, o.owner || '', dl);
-    if (Array.isArray(o.basis)) d.basis = o.basis.map(function (x) { return setL(bi(), x, dl); });
+    (o.basis || []).forEach(function (x, i) {
+      if (x) d.basis[i] = setL(d.basis[i] || bi(), x, dl);
+    });
     d.kill.t = setL(d.kill.t, o.kill_t || '', dl);
     d.sacrifice = setL(d.sacrifice, o.sacrifice || '', dl);
     d.probe.a = setL(d.probe.a, o.probe_a || '', dl);
