@@ -112,6 +112,21 @@
       nsTitle: '三年方向陈述', fNs: '三年方向', fNsHint: '一句方向陈述，不带任何数字，不参与任何计算',
       nsDigitErr: '三年方向不允许出现任何数字。所有量化判据只存在于 90 天这一层。',
       nsEmptyErr: '方向陈述不能为空。',
+      /* 使用说明 */
+      helpBtn: '使用说明',
+      helpTitle: '使用说明',
+      helpLede: '一句话：赌注要说清凭什么、什么算错、放弃什么。下面按你在页面上看到的顺序，一条一句话。',
+      helpBody:
+        '<div class="help-grid">' +
+          '<div class="help-item"><h3>① 三年方向</h3><p>只讲方向，不带数字。数字全部在下面的赌注里。</p></div>' +
+          '<div class="help-item"><h3>② 统计条</h3><p>5 个数字是全局体检结果，出问题先看这一排。</p></div>' +
+          '<div class="help-item"><h3>③ 赌注卡</h3><p>点卡片＝切换右侧矩阵；点"展开"＝看完整细节。</p></div>' +
+          '<div class="help-item"><h3>④ 彩色小标签</h3><p>4 项体检：放弃／停损／30天动作／先行指标。红底＝未通过。</p></div>' +
+          '<div class="help-item"><h3>⑤ 必须为真矩阵</h3><p>金色区＝本季度唯一要验证的前提，其余先当它成立。</p></div>' +
+          '<div class="help-item"><h3>⑥ 资源投向</h3><p>竖线＝嘴上说的，色块＝实际做的。差太多会标红。</p></div>' +
+          '<div class="help-item"><h3>⑦ 录入与编辑</h3><p>桌面端专属。四要素不全，保存会被拦截；可用 AI 补全、AI 翻译。</p></div>' +
+          '<div class="help-item"><h3>⑧ 语言与数据</h3><p>右上角切换中英；数据只存在这台浏览器里，可一键重置。</p></div>' +
+        '</div>',
       /* 语言切换 */
       switchLang: 'EN'
     },
@@ -210,6 +225,21 @@
       nsTitle: '3-Year Direction Statement', fNs: 'Direction', fNsHint: 'one direction sentence, no numbers, not part of any computation',
       nsDigitErr: 'No digits allowed in the 3-year direction. All quantified criteria live only within the 90-day layer.',
       nsEmptyErr: 'The direction statement cannot be empty.',
+      /* Help */
+      helpBtn: 'Help',
+      helpTitle: 'How to use this board',
+      helpLede: 'In one line: a bet must say why we believe it, what would prove it wrong, and what we give up. Below, one line per thing you see on screen.',
+      helpBody:
+        '<div class="help-grid">' +
+          '<div class="help-item"><h3>① 3-year direction</h3><p>Direction only, no numbers. All numbers live in the bets below.</p></div>' +
+          '<div class="help-item"><h3>② Stats strip</h3><p>5 numbers = the global health read. Check here first.</p></div>' +
+          '<div class="help-item"><h3>③ Bet cards</h3><p>Click a card to switch the matrix. Click "Detail" for the full view.</p></div>' +
+          '<div class="help-item"><h3>④ Colored chips</h3><p>4 checks: sacrifice / kill / 30-day probe / leading metric. Red = failed.</p></div>' +
+          '<div class="help-item"><h3>⑤ Must-be-true matrix</h3><p>Gold zone = the one premise to verify this quarter; rest assumed true.</p></div>' +
+          '<div class="help-item"><h3>⑥ Resource allocation</h3><p>Tick = stated, bar = actual. Big gaps get flagged red.</p></div>' +
+          '<div class="help-item"><h3>⑦ Create & edit</h3><p>Desktop only. Missing any of the 4 elements blocks saving; AI can fill and translate.</p></div>' +
+          '<div class="help-item"><h3>⑧ Language & data</h3><p>Switch EN/中文 top right. Data stays in this browser; reset anytime.</p></div>' +
+        '</div>',
       switchLang: '中文'
     }
   };

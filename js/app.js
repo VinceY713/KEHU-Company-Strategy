@@ -195,10 +195,21 @@
   }
   function closeDrawer() { drawer.classList.remove('open'); scrim.classList.remove('open'); drawer.setAttribute('aria-hidden', 'true'); }
 
+  /* ---------------- 使用说明 ---------------- */
+  var helpModal = $('help-modal');
+  function renderHelp() {
+    $('help-title').textContent = t('helpTitle');
+    $('help-body').innerHTML = '<p class="help-lede">' + esc(t('helpLede')) + '</p>' + t('helpBody');
+  }
+  function openHelp() { renderHelp(); helpModal.hidden = false; $('help-close').focus(); }
+  function closeHelp() { helpModal.hidden = true; }
+
   function renderAll() {
     $('ns-text').textContent = L(northstar);
     $('cd').textContent = 'Q3 · D-' + Math.abs(PC.days('2026-09-30'));
     $('add-bet').innerHTML = I18N.icon('plus', 13) + ' ' + t('addBet');
+    $('help-btn').innerHTML = I18N.icon('lightbulb', 13) + ' ' + t('helpBtn');
+    if (!helpModal.hidden) renderHelp();
     setLangUI();
     renderStrip(); renderBets(); renderMatrix(); renderAlloc();
   }
@@ -206,11 +217,14 @@
   /* ---------------- 事件绑定 ---------------- */
   $('dclose').addEventListener('click', closeDrawer);
   scrim.addEventListener('click', closeDrawer);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); window.Editor && window.Editor.close(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); closeHelp(); window.Editor && window.Editor.close(); } });
   $('add-bet').addEventListener('click', function () { window.Editor.openBet(null); });
   $('edit-alloc').addEventListener('click', function () { window.Editor.openAlloc(); });
   $('ns-edit').addEventListener('click', function () { window.Editor.openNorthstar(); });
   $('reset-seed').addEventListener('click', resetSeed);
+  $('help-btn').addEventListener('click', openHelp);
+  $('help-close').addEventListener('click', closeHelp);
+  helpModal.addEventListener('click', function (e) { if (e.target === helpModal) closeHelp(); });
 
   renderAll();
 })();

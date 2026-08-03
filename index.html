@@ -14,6 +14,7 @@
   <span class="sub">客湖战略赌注台</span>
   <span class="sp"></span>
   <button class="btn ghost onlydesktop" id="add-bet"></button>
+  <button class="btn ghost" id="help-btn"></button>
   <button class="btn langbtn" id="lang-btn" aria-label="Switch language">EN</button>
   <span class="cd" id="cd"></span>
 </header>
@@ -46,7 +47,7 @@
           <h3>资源投向</h3>
           <p class="lede" id="alloclede">上季度实际人天占比，对照嘴上说的配比。深色竖线是声称值。</p>
         </div>
-        <button class="btn ghost onlydesktop" id="edit-alloc">编辑配比</button>
+        <button class="btn ghost purple onlydesktop" id="edit-alloc">编辑配比</button>
       </div>
       <ul class="alloc" id="alloc"></ul>
       <p class="verdictline">看日历和看工资单，是检验战略是否存在的唯一硬指标。<b>如果连续两个季度实际投向不动，战略就是假的。</b></p>
@@ -75,6 +76,17 @@
       <button class="dclose" id="me-close" aria-label="关闭"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="modal-body" id="me-body"></div>
+  </div>
+</div>
+
+<!-- 使用说明 modal -->
+<div class="modal" id="help-modal" hidden>
+  <div class="modal-card help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal-head">
+      <h2 id="help-title"></h2>
+      <button class="dclose" id="help-close" aria-label="关闭"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="modal-body" id="help-body"></div>
   </div>
 </div>
 
