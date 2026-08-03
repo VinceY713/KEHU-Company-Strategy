@@ -23,22 +23,19 @@ jobs:
           printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           echo "-- lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
-          echo "-- BEGIN: $(grep -c 'BEGIN' ~/.ssh/deploy_key) END: $(grep -c 'END' ~/.ssh/deploy_key)"
-          echo "-- body line lengths: $(awk 'NR>1 && $0 !~ /^-----/ {printf "%d ", length($0)} END{print ""}' ~/.ssh/deploy_key)"
-          python3 -c "
-import sys
+          pip install -q cryptography 2>&1 | tail -1 || true
+          python3 - <<'PY'
+from cryptography.hazmat.primitives import serialization
+p = '/home/runner/.ssh/deploy_key'
+data = open(p, 'rb').read()
 try:
-    from cryptography.hazmat.primitives import serialization
-    data = open('/home/runner/.ssh/deploy_key','rb').read()
     k = serialization.load_ssh_private_key(data, password=None)
     pem = k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
-    open('/home/runner/.ssh/deploy_key','wb').write(pem)
-    print('KEY_OK_REWRITTEN:', type(k).__name__)
-except ImportError:
-    print('NO_CRYPTOGRAPHY_LIB')
+    open(p, 'wb').write(pem)
+    print('KEY_REWRITTEN:', type(k).__name__)
 except Exception as e:
-    print('KEY_PARSE_ERROR:', type(e).__name__, str(e)[:100])
-" || pip install -q cryptography 2>&1 | tail -1
+    print('KEY_PARSE_ERROR:', type(e).__name__, str(e)[:120])
+PY
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
