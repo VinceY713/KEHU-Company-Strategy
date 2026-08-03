@@ -26,7 +26,8 @@ jobs:
           awk '/BEGIN/{f=1} f{print} f&&/END/{f=0}' ~/.ssh/deploy_key > ~/.ssh/deploy_key.clean
           mv ~/.ssh/deploy_key.clean ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "HOST=$HOST PORT=${PORT:-22}" >> $GITHUB_ENV
+          echo "HOST=$HOST" >> $GITHUB_ENV
+          echo "PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Find working SSH user
         run: |
