@@ -22,9 +22,10 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- key lines: $(wc -l < ~/.ssh/deploy_key)"
-          echo "-- keygen check:"
-          ssh-keygen -y -f ~/.ssh/deploy_key 2>&1 | tail -1 | cut -c1-60 || true
+          echo "-- lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
+          echo "-- BEGIN: $(grep -c 'BEGIN' ~/.ssh/deploy_key) END: $(grep -c 'END' ~/.ssh/deploy_key)"
+          echo "-- body line lengths: $(awk 'NR>1 && $0 !~ /^-----/ {printf "%d ", length($0)} END{print ""}' ~/.ssh/deploy_key)"
+          echo "-- CR count: $(tr -cd '\r' < ~/.ssh/deploy_key | wc -c) literal-backslash-n: $(grep -c '\\\\n' ~/.ssh/deploy_key || true)"
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
