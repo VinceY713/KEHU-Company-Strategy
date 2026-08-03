@@ -24,7 +24,13 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           echo "-- key lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
           echo "-- key type: $(grep -o 'BEGIN [A-Za-z ]*PRIVATE KEY' ~/.ssh/deploy_key | head -1 || echo unknown)"
-          openssl pkey -in ~/.ssh/deploy_key -noout 2>&1 | tail -1 || true
+          echo "-- head bytes: $(head -c 24 ~/.ssh/deploy_key | od -An -tx1 | tr -d ' \n')"
+          perl -pi -e 's/^\x{EF}\x{BB}\x{BF}//' ~/.ssh/deploy_key
+          awk '/BEGIN/{f=1} f{print} f&&/END/{f=0}' ~/.ssh/deploy_key > ~/.ssh/deploy_key.clean
+          mv ~/.ssh/deploy_key.clean ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "-- after clean lines: $(wc -l < ~/.ssh/deploy_key)"
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 && echo "-- ssh-keygen OK" || echo "-- ssh-keygen still fails"
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
