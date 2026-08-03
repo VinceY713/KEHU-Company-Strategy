@@ -22,38 +22,20 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          echo "-- lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
-          pip install -q cryptography 2>&1 | tail -1 || true
-          python3 - <<'PY'
-from cryptography.hazmat.primitives import serialization
-p = '/home/runner/.ssh/deploy_key'
-data = open(p, 'rb').read()
-try:
-    k = serialization.load_ssh_private_key(data, password=None)
-    pem = k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
-    open(p, 'wb').write(pem)
-    print('KEY_REWRITTEN:', type(k).__name__)
-except Exception as e:
-    print('KEY_PARSE_ERROR:', type(e).__name__, str(e)[:120])
-PY
+          echo "-- key lines: $(wc -l < ~/.ssh/deploy_key)"
+          openssl pkey -in ~/.ssh/deploy_key -traditional -out ~/.ssh/deploy_key.pem 2>/tmp/ossl.err
+          if [ -s ~/.ssh/deploy_key.pem ]; then
+            mv ~/.ssh/deploy_key.pem ~/.ssh/deploy_key
+            echo "-- key converted to PEM OK"
+          else
+            echo "-- openssl convert failed: $(tail -1 /tmp/ossl.err)"
+          fi
+          chmod 600 ~/.ssh/deploy_key
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER@$HOST '
-            echo "== USER: $(whoami) @ $(hostname) ==";
-            grep PRETTY /etc/os-release;
-            echo "== nginx ==";
-            command -v nginx && sudo systemctl is-active nginx 2>/dev/null;
-            echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null;
-            echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null;
-            echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5;
-            echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null;
-            echo "== web dirs =="; ls -d /var/www/* 2>/dev/null;
-            echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3;
-            echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO;
-            echo "== home =="; ls ~ 2>/dev/null | head -8;
-          '
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER@$HOST 'echo "== USER: $(whoami) @ $(hostname) =="; grep PRETTY /etc/os-release; echo "== nginx =="; command -v nginx && sudo systemctl is-active nginx 2>/dev/null; echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null; echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null; echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5; echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null; echo "== web dirs =="; ls -d /var/www/* 2>/dev/null; echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3; echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO; echo "== home =="; ls ~ 2>/dev/null | head -8'
 
       - name: Upload code to server temp dir
         run: |
