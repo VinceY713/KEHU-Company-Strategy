@@ -25,7 +25,20 @@ jobs:
           echo "-- lines: $(wc -l < ~/.ssh/deploy_key) chars: $(wc -c < ~/.ssh/deploy_key)"
           echo "-- BEGIN: $(grep -c 'BEGIN' ~/.ssh/deploy_key) END: $(grep -c 'END' ~/.ssh/deploy_key)"
           echo "-- body line lengths: $(awk 'NR>1 && $0 !~ /^-----/ {printf "%d ", length($0)} END{print ""}' ~/.ssh/deploy_key)"
-          echo "-- CR count: $(tr -cd '\r' < ~/.ssh/deploy_key | wc -c) literal-backslash-n: $(grep -c '\\\\n' ~/.ssh/deploy_key || true)"
+          python3 -c "
+import sys
+try:
+    from cryptography.hazmat.primitives import serialization
+    data = open('/home/runner/.ssh/deploy_key','rb').read()
+    k = serialization.load_ssh_private_key(data, password=None)
+    pem = k.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
+    open('/home/runner/.ssh/deploy_key','wb').write(pem)
+    print('KEY_OK_REWRITTEN:', type(k).__name__)
+except ImportError:
+    print('NO_CRYPTOGRAPHY_LIB')
+except Exception as e:
+    print('KEY_PARSE_ERROR:', type(e).__name__, str(e)[:100])
+" || pip install -q cryptography 2>&1 | tail -1
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
       - name: Probe server environment
