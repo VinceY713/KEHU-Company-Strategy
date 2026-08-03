@@ -33,10 +33,34 @@ jobs:
           ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null 2>&1 && echo "-- ssh-keygen OK" || echo "-- ssh-keygen still fails"
           echo "HOST=$HOST USER=$USER PORT=${PORT:-22}" >> $GITHUB_ENV
 
+      - name: Find working SSH user
+        run: |
+          SSHCMD="ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -p ${PORT:-22}"
+          FOUND=""
+          if $SSHCMD $USER@$HOST 'true' 2>/dev/null; then
+            FOUND="$USER"
+            echo "-- secret user works: $USER"
+          else
+            echo "-- secret user '$USER' rejected, trying common users"
+            for u in root ubuntu lighthouse admin ecs-user centos; do
+              if $SSHCMD $u@$HOST 'true' 2>/dev/null; then
+                FOUND="$u"
+                echo "-- user works: $u"
+                break
+              fi
+            done
+          fi
+          if [ -n "$FOUND" ]; then
+            echo "USER_OK=$FOUND" >> $GITHUB_ENV
+          else
+            echo "::error::No SSH user accepted this key on $HOST — key likely not registered on the server"
+            exit 1
+          fi
+
       - name: Probe server environment
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER@$HOST 'echo "== USER: $(whoami) @ $(hostname) =="; grep PRETTY /etc/os-release; echo "== nginx =="; command -v nginx && sudo systemctl is-active nginx 2>/dev/null; echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null; echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null; echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5; echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null; echo "== web dirs =="; ls -d /var/www/* 2>/dev/null; echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3; echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO; echo "== home =="; ls ~ 2>/dev/null | head -8'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -p ${PORT:-22} $USER_OK@$HOST 'echo "== USER: $(whoami) @ $(hostname) =="; grep PRETTY /etc/os-release; echo "== nginx =="; command -v nginx && sudo systemctl is-active nginx 2>/dev/null; echo "-- conf.d:"; sudo ls /etc/nginx/conf.d/ 2>/dev/null; echo "-- sites-enabled:"; sudo ls /etc/nginx/sites-enabled/ 2>/dev/null; echo "-- playcard in nginx:"; sudo grep -rn "playcard" /etc/nginx/ 2>/dev/null | head -5; echo "-- xiaohu domain:"; sudo grep -rln "xiaohu" /etc/nginx/ 2>/dev/null; echo "== web dirs =="; ls -d /var/www/* 2>/dev/null; echo "== port 80 =="; sudo ss -ltnp 2>/dev/null | grep -E ":80 " | head -3; echo "== sudo nopasswd =="; sudo -n true 2>/dev/null && echo YES || echo NO; echo "== home =="; ls ~ 2>/dev/null | head -8'
 
       - name: Upload code to server temp dir
         run: |
-          rsync -avz --delete --exclude '.git' --exclude '.github' --exclude '.workbuddy' --exclude '.claude' --exclude 'KCS.pem' -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22}" ./ $USER@$HOST:/tmp/playcard-deploy/ 2>&1 | tail -6
+          rsync -avz --delete --exclude '.git' --exclude '.github' --exclude '.workbuddy' --exclude '.claude' --exclude 'KCS.pem' -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -p ${PORT:-22}" ./ $USER_OK@$HOST:/tmp/playcard-deploy/ 2>&1 | tail -6
